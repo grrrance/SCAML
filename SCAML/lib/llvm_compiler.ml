@@ -9,7 +9,6 @@ let builder = builder context
 let int_64 = i64_type context
 let void = void_type context
 let named_values : (string, llvalue) Hashtbl.t = Hashtbl.create 20
-let global_scope : (string, int * llvalue) Base.Map.Poly.t = Base.Map.Poly.empty
 let ( let* ) = bind
 
 let codegen_imm = function
@@ -19,7 +18,12 @@ let codegen_imm = function
   | ImmId id ->
     (match Hashtbl.find_opt named_values id with
      | Some v -> ok (build_load int_64 v id builder)
-     | None -> error (Printf.sprintf "Unknown identifier %s" id))
+     | None -> (
+          match lookup_function id the_module with
+          | Some v -> ok v
+          | None -> error "Unknown variable"
+        )
+     )
 ;;
 
 (* fix and add global functions*)
@@ -46,7 +50,7 @@ let codegen_cexpr = function
     let* r' = codegen_imm r in
     ok (codegen_binop op l' r')
   | CImmExpr e -> codegen_imm e
-  | CApp (func, arg) -> error "Not implemented"
+  | CApp (_, _) -> error "Not implemented"
 ;;
 
 let rec codegen_aexpr = function
@@ -85,7 +89,40 @@ let rec codegen_aexpr = function
     codegen_aexpr aexpr
 ;;
 
-(* let codegen_bexpr = function
-| ALet (is_rec, id, args, body) ->
+let codegen_bexpr = function
+| ALet (_, id, args, body) ->
   Hashtbl.clear named_values;
-   *)
+  let ints = Array.make (List.length args) int_64 in
+  let ftype = function_type int_64 ints in
+  let* func = 
+    (match lookup_function id the_module with
+    | Some _ -> error "Function already exists"
+    | None -> ok @@ declare_function id ftype the_module)
+  in
+  let* names =
+    let rec check acc = function
+      | [] -> ok (List.rev acc)
+      | PImmExpr (ImmId id) :: xs -> check (id :: acc) xs
+      | PImmWild :: xs -> check ("0_unused_underscore_variable" :: acc) xs
+      | _ -> error "Invalid argument"
+    in
+    check [] args
+  in
+  Array.iteri (fun i a ->
+    let name = List.nth names i in
+    set_value_name name a;
+  )
+  (params func);
+  let bb = append_block context "entry" func in
+  position_at_end bb builder;
+  Array.iteri (fun i a ->
+  let name = List.nth names i in
+    let alloca = build_alloca int_64 name builder in
+    build_store a alloca builder |> ignore;
+    Hashtbl.add named_values name alloca;
+  )
+  (params func);
+  let* ret_val = codegen_aexpr body in
+  let _ = build_ret ret_val builder in
+  ok func
+
