@@ -14,8 +14,9 @@
   Closure
   AstPrinter
   LlastPrinter
-  Lambda_lifting)
- (libraries base angstrom)
+  Lambda_lifting
+  Llvm_compiler)
+ (libraries base angstrom llvm)
  (instrumentation
   (backend bisect_ppx))
  (preprocess
