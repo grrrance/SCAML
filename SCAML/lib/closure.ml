@@ -101,8 +101,8 @@ let prog_conversion program =
   let closured prog =
     List.fold
       ~init:([], Set.empty (module String))
-      ~f:(fun (acc, global) e ->
-        match e with
+      ~f:(fun (acc, global) ->
+        function
         | ELet (_, id, _) as orig ->
           let e' = closure_conversion global orig in
           let global' = Set.add global id in

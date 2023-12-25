@@ -35,6 +35,8 @@ let pp_cexpr ppf = function
   | CBinOp (op, l, r) -> fprintf ppf "%a %a %a" pp_immexpr l pp_binop op pp_immexpr r
   | CImmExpr i -> fprintf ppf "%a" pp_immexpr i
   | CApp (l, r) -> fprintf ppf "%a %a" pp_immexpr l pp_immexpr r
+  | CIf (cond, t, e) ->
+    fprintf ppf "if %a then %a else %a" pp_immexpr cond pp_immexpr t pp_immexpr e
 ;;
 
 let pp_pexpr ppf = function
@@ -45,8 +47,6 @@ let pp_pexpr ppf = function
 let rec pp_aexpr ppf = function
   | ALetIn (name, value, ae) ->
     fprintf ppf "let %s = %a in\n %a" name pp_cexpr value pp_aexpr ae
-  | AIf (cond, t, e) ->
-    fprintf ppf "if %a then %a else %a" pp_aexpr cond pp_aexpr t pp_aexpr e
   | ACExpr ce -> fprintf ppf "%a" pp_cexpr ce
 ;;
 

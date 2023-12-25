@@ -8,9 +8,6 @@ open Ast
 open AnfPrinter
 open Counter
 
-(** Variable Generation *)
-let gen_varname base id = Format.sprintf "%d_%s" id base
-
 (** Converts constant to immediate value *)
 let conv_const = function
   | CBool b -> ImmBool b
@@ -26,50 +23,71 @@ let conv_pattern = function
 ;;
 
 open IState
+open IState.Syntax
 
-let rec anf_expr (e : llexpr) (expr_with_imm_hole : immexpr -> aexpr t) : aexpr t =
+(** Variable Generation *)
+let rec gen_var base global =
+  let* fresh_id = fresh_name_int in
+  let new_id = base ^ Int.to_string fresh_id in
+  let is_in = Base.Set.mem global new_id in
+  if is_in then gen_var base global else return new_id
+;;
+
+let rec anf_expr
+  (env : (string, 'a) Base.Set.t)
+  (e : llexpr)
+  (expr_with_imm_hole : immexpr -> aexpr t)
+  : aexpr t
+  =
   match e with
   | LLConst c -> expr_with_imm_hole @@ conv_const c
   | LLVar id -> expr_with_imm_hole @@ ImmId id
   | LLBinOp (op, left, right) ->
-    anf_expr left (fun limm ->
-      anf_expr right (fun rimm ->
-        fresh_name_int
-        >>= fun id ->
-        let var = gen_varname "b_op" id in
+    anf_expr env left (fun limm ->
+      anf_expr env right (fun rimm ->
+        let* var = gen_var "b_op_" env in
         expr_with_imm_hole @@ ImmId var
         >>= fun ae -> return (ALetIn (var, CBinOp (op, limm, rimm), ae))))
   | LLIf (cond, t, e) ->
-    anf_expr cond (fun cimm ->
-      anf_expr t (fun timm ->
-        anf_expr e (fun eimm ->
-          expr_with_imm_hole cimm
-          >>= fun aec ->
-          expr_with_imm_hole timm
-          >>= fun aet ->
-          expr_with_imm_hole eimm >>= fun aee -> return (AIf (aec, aet, aee)))))
+    anf_expr env cond (fun cimm ->
+      anf_expr env t (fun timm ->
+        anf_expr env e (fun eimm ->
+          let* var = gen_var "if_" env in
+          expr_with_imm_hole @@ ImmId var
+          >>= fun ae -> return (ALetIn (var, CIf (cimm, timm, eimm), ae)))))
   | LLApp (f, arg) ->
-    anf_expr f (fun fimm ->
-      anf_expr arg (fun argimm ->
-        fresh_name_int
-        >>= fun id ->
-        let var = gen_varname "app" id in
+    anf_expr env f (fun fimm ->
+      anf_expr env arg (fun argimm ->
+        let* var = gen_var "app_" env in
         expr_with_imm_hole @@ ImmId var
         >>= fun ae -> return (ALetIn (var, CApp (fimm, argimm), ae))))
   | LLLetIn (varname, e1, e2) ->
-    anf_expr e1 (fun immval ->
-      anf_expr e2 expr_with_imm_hole
+    let new_env = Base.Set.add env varname in
+    anf_expr new_env e1 (fun immval ->
+      anf_expr new_env e2 expr_with_imm_hole
       >>= fun body -> return (ALetIn (varname, CImmExpr immval, body)))
 ;;
 
-let anf_binding = function
+let anf_binding env = function
   | LLLet (r, varname, args, e) ->
-    anf_expr e (fun ie -> return (ACExpr (CImmExpr ie)))
+    let rec get_initial_env args acc =
+      match args with
+      | [] -> acc
+      | PVar id :: tl -> Base.Set.add acc id |> get_initial_env tl
+      | _ :: tl -> get_initial_env tl acc
+    in
+    anf_expr (get_initial_env args env) e (fun ie -> return (ACExpr (CImmExpr ie)))
     >>= fun anf_e -> return (ALet (r, varname, List.map conv_pattern args, anf_e))
 ;;
 
 let anf_program (binds : llbinding list) =
-  List.map (fun bind -> snd @@ IState.runState ~init:0 (anf_binding bind)) binds
+  let rec get_initial_env binds acc =
+    match binds with
+    | [] -> acc
+    | LLLet (_, varname, _, _) :: tl -> Base.Set.add acc varname |> get_initial_env tl
+  in
+  let env = get_initial_env binds (Base.Set.empty (module Base.String)) in
+  List.map (fun bind -> snd @@ IState.runState ~init:0 (anf_binding env bind)) binds
 ;;
 
 let print_anf_prog llbinds =
@@ -80,7 +98,12 @@ let print_anf_prog llbinds =
 let print_anf_expr llexpr =
   let res =
     snd
-    @@ IState.runState ~init:0 (anf_expr llexpr (fun ie -> return (ACExpr (CImmExpr ie))))
+    @@ IState.runState
+         ~init:0
+         (anf_expr
+            (Base.Set.empty (module Base.String))
+            llexpr
+            (fun ie -> return (ACExpr (CImmExpr ie))))
   in
   Format.printf "%a" pp_aexpr res
 ;;
@@ -89,9 +112,9 @@ let%expect_test _ =
   print_anf_expr
   @@ LLBinOp (Sub, LLBinOp (Add, LLConst (CInt 5), LLConst (CInt 4)), LLConst (CInt 2));
   [%expect {|
-    let 0_b_op = 5 + 4 in
-     let 1_b_op = 0_b_op - 2 in
-     1_b_op |}]
+    let b_op_0 = 5 + 4 in
+     let b_op_1 = b_op_0 - 2 in
+     b_op_1 |}]
 ;;
 
 let%expect_test _ =
@@ -102,10 +125,10 @@ let%expect_test _ =
        , LLConst (CInt 2) );
   [%expect
     {|
-    let 0_b_op = 4 - 3 in
-     let 1_b_op = 5 + 0_b_op in
-     let 2_b_op = 1_b_op + 2 in
-     2_b_op |}]
+    let b_op_0 = 4 - 3 in
+     let b_op_1 = 5 + b_op_0 in
+     let b_op_2 = b_op_1 + 2 in
+     b_op_2 |}]
 ;;
 
 let%expect_test _ =
@@ -116,10 +139,10 @@ let%expect_test _ =
        , LLBinOp (Add, LLConst (CInt 3), LLConst (CInt 2)) );
   [%expect
     {|
-    let 0_b_op = 5 + 4 in
-     let 1_b_op = 3 + 2 in
-     let 2_b_op = 0_b_op + 1_b_op in
-     2_b_op |}]
+    let b_op_0 = 5 + 4 in
+     let b_op_1 = 3 + 2 in
+     let b_op_2 = b_op_0 + b_op_1 in
+     b_op_2 |}]
 ;;
 
 let%expect_test _ =
@@ -151,21 +174,22 @@ let%expect_test _ =
      ];
   [%expect
     {|
-    let fack1 k n m = let 0_b_op = n * m in
-     let 1_app = k 0_b_op in
-     1_app;;
-    let rec fack n k = let 0_b_op = n <= 1 in
-     let 1_app = k 1 in
-     let 2_b_op = n - 1 in
-     let 3_app = fack 2_b_op in
-     let 4_app = fack1 k in
-     let 5_app = 4_app n in
-     let 6_app = 3_app 5_app in
-     if 0_b_op then 1_app else 6_app;;
+    let fack1 k n m = let b_op_0 = n * m in
+     let app_1 = k b_op_0 in
+     app_1;;
+    let rec fack n k = let b_op_0 = n <= 1 in
+     let app_1 = k 1 in
+     let b_op_2 = n - 1 in
+     let app_3 = fack b_op_2 in
+     let app_4 = fack1 k in
+     let app_5 = app_4 n in
+     let app_6 = app_3 app_5 in
+     let if_7 = if b_op_0 then app_1 else app_6 in
+     if_7;;
     let id x = x;;
-    let fac n = let 0_app = fack n in
-     let 1_app = 0_app id in
-     1_app |}]
+    let fac n = let app_0 = fack n in
+     let app_1 = app_0 id in
+     app_1 |}]
 ;;
 
 let%expect_test _ =
@@ -211,25 +235,26 @@ let%expect_test _ =
   [%expect
     {|
     let id x = x;;
-    let acc1 acc x y = let 0_b_op = x + y in
-     let 1_app = acc 0_b_op in
-     1_app;;
-    let acc2 fib_func n acc x = let 0_b_op = n - 2 in
-     let 1_app = fib_func 0_b_op in
-     let 2_app = acc1 acc in
-     let 3_app = 2_app x in
-     let 4_app = 1_app 3_app in
-     4_app;;
-    let rec fibo_cps n acc = let 0_b_op = n < 3 in
-     let 1_app = acc 1 in
-     let 2_b_op = n - 1 in
-     let 3_app = fibo_cps 2_b_op in
-     let 4_app = acc2 fibo_cps in
-     let 5_app = 4_app n in
-     let 6_app = 5_app acc in
-     let 7_app = 3_app 6_app in
-     if 0_b_op then 1_app else 7_app;;
-    let fibo n = let 0_app = fibo_cps n in
-     let 1_app = 0_app id in
-     1_app |}]
+    let acc1 acc x y = let b_op_0 = x + y in
+     let app_1 = acc b_op_0 in
+     app_1;;
+    let acc2 fib_func n acc x = let b_op_0 = n - 2 in
+     let app_1 = fib_func b_op_0 in
+     let app_2 = acc1 acc in
+     let app_3 = app_2 x in
+     let app_4 = app_1 app_3 in
+     app_4;;
+    let rec fibo_cps n acc = let b_op_0 = n < 3 in
+     let app_1 = acc 1 in
+     let b_op_2 = n - 1 in
+     let app_3 = fibo_cps b_op_2 in
+     let app_4 = acc2 fibo_cps in
+     let app_5 = app_4 n in
+     let app_6 = app_5 acc in
+     let app_7 = app_3 app_6 in
+     let if_8 = if b_op_0 then app_1 else app_7 in
+     if_8;;
+    let fibo n = let app_0 = fibo_cps n in
+     let app_1 = app_0 id in
+     app_1 |}]
 ;;

@@ -99,7 +99,7 @@ let pident =
 let ppwild = constr_pwild <$> pwild
 let ppconst = constr_pconst <$> pconst
 let ppvar = constr_pvar <$> pident
-let pattern = fix @@ fun m -> choice [ ppwild; ppconst; ppvar ] <|> pparens @@ m
+let pattern = fix @@ fun m -> choice [ ppwild; ppconst; ppvar ] <|> pparens m
 
 (**  Operation parsers *)
 
@@ -126,8 +126,8 @@ type edispatch =
 
 let peconst = constr_econst <$> pconst
 let pevar = pident >>| constr_evar
-let pfun_args = fix @@ fun p -> many pattern <|> pparens @@ p
-let pfun_args1 = fix @@ fun p -> many1 pattern <|> pparens @@ p
+let pfun_args = fix @@ fun p -> many pattern <|> pparens p
+let pfun_args1 = fix @@ fun p -> many1 pattern <|> pparens p
 let pparens_only ps = pparens @@ choice ps
 
 let plet_body pargs pexpr =
@@ -248,8 +248,7 @@ let expr = pack.expr pack
 let bind =
   fix
   @@ fun m ->
-  lift3 constr_elet pbind_with_option_rec pname_func (pbody_with_args pack)
-  <|> pparens @@ m
+  lift3 constr_elet pbind_with_option_rec pname_func (pbody_with_args pack) <|> pparens m
 ;;
 
 (**  Program parser *)
