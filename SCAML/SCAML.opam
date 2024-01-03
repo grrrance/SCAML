@@ -21,6 +21,7 @@ depends: [
   "odoc" {with-doc}
   "ocamlformat" {build}
   "base"
+  "bisect_ppx"
 ]
 build: [
   ["dune" "subst"] {dev}

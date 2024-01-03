@@ -29,4 +29,5 @@
   ppx_deriving
   (odoc :with-doc)
   (ocamlformat :build)
-  base))
+  base
+  bisect_ppx))
