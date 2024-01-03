@@ -67,9 +67,10 @@ let rec pp_expr fmt = function
   | ELetIn (rec_flag, x, e1, e2) ->
     fprintf
       fmt
-      "let %a %s %a = %a in %a"
+      "let %a %a %a = %a in %a"
       pp_rec_flag
       rec_flag
+      pp_pattern
       x
       eletin_helper
       e1
@@ -86,19 +87,29 @@ and efun_helper fmt = function
 
 and pp_binding fmt = function
   | ELet (rec_flag, x, e) ->
-    fprintf fmt "let %a %s %a = %a" pp_rec_flag rec_flag x eletin_helper e efun_helper e
+    fprintf
+      fmt
+      "let %a %a %a = %a"
+      pp_rec_flag
+      rec_flag
+      pp_pattern
+      x
+      eletin_helper
+      e
+      efun_helper
+      e
 ;;
 
 let%expect_test _ =
   printf "%a" pp_binding
   @@ ELet
        ( false
-       , "fac"
+       , PVar "fac"
        , EFun
            ( PVar "n"
            , ELetIn
                ( true
-               , "fack"
+               , PVar "fack"
                , EFun
                    ( PVar "n"
                    , EFun

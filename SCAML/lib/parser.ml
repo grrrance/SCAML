@@ -95,6 +95,13 @@ let pident =
   ident is_entry
 ;;
 
+let pident_varname =
+  let is_entry = function
+    | c -> is_aletter c
+  in
+  ident is_entry
+;;
+
 (**  Pattern parsers *)
 
 let ppwild = constr_pwild <$> pwild
@@ -151,8 +158,10 @@ let plet_body_without_args pexpr =
 ;;
 
 let pbind_with_option_rec = pbinding *> option false (str_token1 "rec " >>| fun _ -> true)
-let pname_func = pident >>| fun name -> name
+let pbind_without_rec = pbinding *> return false
+let pname_func = pident_varname >>| constr_pvar
 let pbody_with_args pack = plet_body pfun_args (pack.expr pack)
+let pbody_without_args pack = plet_body_without_args (pack.expr pack)
 
 let pack =
   let expr pack =
@@ -243,9 +252,6 @@ let pack =
     lift2 constr_eapp (app_func_parsers pack) (many1 (token1 @@ app_args_parsers pack))
     <|> pparens @@ pack.app pack
   in
-  let pbind_without_rec = pbinding *> return false in
-  let punderscore_name = str_token1 "_" *> return "_" in
-  let pbody_without_args pack = plet_body_without_args (expr pack) in
   let bind_in pack =
     fix
     @@ fun _ ->
@@ -258,7 +264,7 @@ let pack =
     <|> lift4
           constr_eletin
           pbind_without_rec
-          punderscore_name
+          pattern
           (pbody_without_args pack)
           (str_token1 "in" *> expr pack)
     <|> pparens @@ pack.bind_in pack
@@ -272,7 +278,9 @@ let expr = pack.expr pack
 let bind =
   fix
   @@ fun m ->
-  lift3 constr_elet pbind_with_option_rec pname_func (pbody_with_args pack) <|> pparens m
+  lift3 constr_elet pbind_with_option_rec pname_func (pbody_with_args pack)
+  <|> lift3 constr_elet pbind_without_rec pattern (pbody_without_args pack)
+  <|> pparens m
 ;;
 
 (**  Program parser *)
@@ -574,14 +582,14 @@ let%expect_test _ =
 let%expect_test _ =
   show_parsed_result "let f x = x" pprogram show_program;
   [%expect {|
-    [(ELet (false, "f", (EFun ((PVar "x"), (EVar "x")))))] |}]
+    [(ELet (false, (PVar "f"), (EFun ((PVar "x"), (EVar "x")))))] |}]
 ;;
 
 let%expect_test _ =
   show_parsed_result "let bind x f = f x" pprogram show_program;
   [%expect
     {|
-    [(ELet (false, "bind",
+    [(ELet (false, (PVar "bind"),
         (EFun ((PVar "x"), (EFun ((PVar "f"), (EApp ((EVar "f"), (EVar "x")))))))
         ))
       ] |}]
@@ -591,7 +599,7 @@ let%expect_test _ =
   show_parsed_result "let mult x = fun y -> x * y" pprogram show_program;
   [%expect
     {|
-    [(ELet (false, "mult",
+    [(ELet (false, (PVar "mult"),
         (EFun ((PVar "x"),
            (EFun ((PVar "y"), (EBinOp (Mul, (EVar "x"), (EVar "y")))))))
         ))
@@ -600,7 +608,7 @@ let%expect_test _ =
 
 let%expect_test _ =
   show_parsed_result "let x = 10" pprogram show_program;
-  [%expect {| [(ELet (false, "x", (EConst (CInt 10))))] |}]
+  [%expect {| [(ELet (false, (PVar "x"), (EConst (CInt 10))))] |}]
 ;;
 
 let%expect_test _ =
@@ -610,7 +618,7 @@ let%expect_test _ =
     show_program;
   [%expect
     {|
-    [(ELet (true, "factorial",
+    [(ELet (true, (PVar "factorial"),
         (EFun ((PVar "n"),
            (EIf ((EBinOp (Leq, (EVar "n"), (EConst (CInt 1)))),
               (EConst (CInt 1)),
@@ -631,7 +639,7 @@ let%expect_test _ =
     show_program;
   [%expect
     {|
-    [(ELet (true, "series",
+    [(ELet (true, (PVar "series"),
         (EFun ((PVar "n"),
            (EIf ((EBinOp (Eq, (EVar "n"), (EConst (CInt 1)))), (EConst (CInt 1)),
               (EBinOp (Add, (EVar "n"),
@@ -651,7 +659,7 @@ let%expect_test _ =
     show_program;
   [%expect
     {|
-    [(ELet (true, "fibonacci",
+    [(ELet (true, (PVar "fibonacci"),
         (EFun ((PVar "n"),
            (EIf ((EBinOp (Leq, (EVar "n"), (EConst (CInt 1)))),
               (EConst (CInt 1)),
@@ -675,7 +683,7 @@ let%expect_test _ =
     show_program;
   [%expect
     {|
-    [(ELet (false, "fack1",
+    [(ELet (false, (PVar "fack1"),
         (EFun ((PVar "k"),
            (EFun ((PVar "n"),
               (EFun ((PVar "m"),
@@ -683,7 +691,7 @@ let%expect_test _ =
               ))
            ))
         ));
-      (ELet (true, "fack",
+      (ELet (true, (PVar "fack"),
          (EFun ((PVar "n"),
             (EFun ((PVar "k"),
                (EIf ((EBinOp (Leq, (EVar "n"), (EConst (CInt 1)))),
@@ -696,8 +704,8 @@ let%expect_test _ =
                ))
             ))
          ));
-      (ELet (false, "id", (EFun ((PVar "x"), (EVar "x")))));
-      (ELet (false, "fac",
+      (ELet (false, (PVar "id"), (EFun ((PVar "x"), (EVar "x")))));
+      (ELet (false, (PVar "fac"),
          (EFun ((PVar "n"),
             (EApp ((EApp ((EVar "fack"), (EVar "n"))), (EVar "id")))))
          ))
@@ -716,8 +724,8 @@ let%expect_test _ =
     show_program;
   [%expect
     {|
-    [(ELet (false, "id", (EFun ((PVar "x"), (EVar "x")))));
-      (ELet (false, "acc1",
+    [(ELet (false, (PVar "id"), (EFun ((PVar "x"), (EVar "x")))));
+      (ELet (false, (PVar "acc1"),
          (EFun ((PVar "acc"),
             (EFun ((PVar "x"),
                (EFun ((PVar "y"),
@@ -725,7 +733,7 @@ let%expect_test _ =
                ))
             ))
          ));
-      (ELet (false, "acc2",
+      (ELet (false, (PVar "acc2"),
          (EFun ((PVar "fib_func"),
             (EFun ((PVar "n"),
                (EFun ((PVar "acc"),
@@ -740,7 +748,7 @@ let%expect_test _ =
                ))
             ))
          ));
-      (ELet (true, "fibo_cps",
+      (ELet (true, (PVar "fibo_cps"),
          (EFun ((PVar "n"),
             (EFun ((PVar "acc"),
                (EIf ((EBinOp (Less, (EVar "n"), (EConst (CInt 3)))),
@@ -757,7 +765,7 @@ let%expect_test _ =
                ))
             ))
          ));
-      (ELet (false, "fibo",
+      (ELet (false, (PVar "fibo"),
          (EFun ((PVar "n"),
             (EApp ((EApp ((EVar "fibo_cps"), (EVar "n"))), (EVar "id")))))
          ))
@@ -770,7 +778,7 @@ let%expect_test _ =
   show_parsed_result "let sum x = fun y -> x + y in sum 10 5" expr show_expr;
   [%expect
     {|
-    (ELetIn (false, "sum",
+    (ELetIn (false, (PVar "sum"),
        (EFun ((PVar "x"),
           (EFun ((PVar "y"), (EBinOp (Add, (EVar "x"), (EVar "y"))))))),
        (EApp ((EApp ((EVar "sum"), (EConst (CInt 10)))), (EConst (CInt 5)))))) |}]
@@ -783,7 +791,7 @@ let%expect_test _ =
     show_expr;
   [%expect
     {|
-    (ELetIn (true, "fact",
+    (ELetIn (true, (PVar "fact"),
        (EFun ((PVar "x"),
           (EIf ((EBinOp (Leq, (EVar "x"), (EConst (CInt 1)))), (EConst (CInt 1)),
              (EBinOp (Mul,
@@ -793,4 +801,43 @@ let%expect_test _ =
              ))
           )),
        (EApp ((EVar "fact"), (EConst (CInt 10)))))) |}]
+;;
+
+(**  General pattern matching in let in *)
+
+let%expect_test _ =
+  show_parsed_result "let x,y = 5,5 in x" expr show_expr;
+  [%expect
+    {|
+    (ELetIn (false, (PTuple [(PVar "x"); (PVar "y")]),
+       (ETuple [(EConst (CInt 5)); (EConst (CInt 5))]), (EVar "x"))) |}]
+;;
+
+let%expect_test _ =
+  show_parsed_result "let snd (x,y) = y in snd (1,2)" expr show_expr;
+  [%expect
+    {|
+    (ELetIn (false, (PVar "snd"),
+       (EFun ((PTuple [(PVar "x"); (PVar "y")]), (EVar "y"))),
+       (EApp ((EVar "snd"), (ETuple [(EConst (CInt 1)); (EConst (CInt 2))]))))) |}]
+;;
+
+(**  General pattern matching in let *)
+
+let%expect_test _ =
+  show_parsed_result "let x,y = 5,5" pprogram show_program;
+  [%expect
+    {|
+    [(ELet (false, (PTuple [(PVar "x"); (PVar "y")]),
+        (ETuple [(EConst (CInt 5)); (EConst (CInt 5))])))
+      ] |}]
+;;
+
+let%expect_test _ =
+  show_parsed_result "let snd (x,y) = y" pprogram show_program;
+  [%expect
+    {|
+    [(ELet (false, (PVar "snd"),
+        (EFun ((PTuple [(PVar "x"); (PVar "y")]), (EVar "y")))))
+      ] |}]
 ;;
