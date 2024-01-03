@@ -5,6 +5,14 @@
 open Ast
 open Format
 
+let pp_list ppf pp sep =
+  pp_print_list ~pp_sep:(fun ppf _ -> fprintf ppf sep) (fun ppf value -> pp ppf value) ppf
+;;
+
+let pp_tuple tuple_items pp fmt =
+  fprintf fmt "(%a)" (fun fmt -> pp_list fmt pp ", ") tuple_items
+;;
+
 let pp_const fmt = function
   | CInt x -> fprintf fmt "%d" x
   | CBool x -> fprintf fmt "%b" x
@@ -31,6 +39,7 @@ let pp_pattern fmt = function
   | PVar x -> fprintf fmt "%s" x
   | PConst c -> pp_const fmt c
   | PWild -> fprintf fmt "_"
+  | PTuple pats -> pp_tuple pats pp_pattern fmt
 ;;
 
 let rec pp_patterns fmt = function
@@ -69,6 +78,7 @@ let rec pp_expr fmt = function
       pp_expr
       e2
   | EApp (e1, e2) -> fprintf fmt "%a %a" pp_expr e1 pp_expr e2
+  | ETuple exprs -> pp_tuple exprs pp_expr fmt
 
 and efun_helper fmt = function
   | EFun (_, e) -> fprintf fmt "%a" efun_helper e

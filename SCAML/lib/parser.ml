@@ -57,6 +57,7 @@ let pparens p = str_token "(" *> p <* str_token ")"
 let parrow = str_token "->"
 let pbinding = str_token "let"
 let pwild = str_token "_"
+let pcomma = str_token ","
 
 (**  Const parsers *)
 let pcint =
@@ -99,7 +100,16 @@ let pident =
 let ppwild = constr_pwild <$> pwild
 let ppconst = constr_pconst <$> pconst
 let ppvar = constr_pvar <$> pident
-let pattern = fix @@ fun m -> choice [ ppwild; ppconst; ppvar ] <|> pparens m
+let ppval = fix @@ fun m -> choice [ ppwild; ppconst; ppvar ] <|> pparens m
+
+let sep_parser ps constr between =
+  lift2 (fun pat pats -> constr @@ (pat :: pats)) (token @@ ps) (many1 (between *> ps))
+;;
+
+let ptuple ps constr = fix @@ fun m -> sep_parser ps constr pcomma <|> pparens m
+let pptuple = fix @@ fun m -> ptuple (pparens m <|> ppval) constr_ptuple
+let pattern = choice [ pptuple; ppval ]
+let pattern_args = choice [ pparens pptuple; ppval ]
 
 (**  Operation parsers *)
 
@@ -121,14 +131,15 @@ type edispatch =
   ; func : edispatch -> expr t
   ; bind_in : edispatch -> expr t
   ; app : edispatch -> expr t
+  ; tuple : edispatch -> expr t
   ; expr : edispatch -> expr t
   }
 
+let pparens_only_pack ps = pparens @@ choice ps
 let peconst = constr_econst <$> pconst
 let pevar = pident >>| constr_evar
-let pfun_args = fix @@ fun p -> many pattern <|> pparens p
-let pfun_args1 = fix @@ fun p -> many1 pattern <|> pparens p
-let pparens_only ps = pparens @@ choice ps
+let pfun_args = fix @@ fun p -> many pattern_args <|> pparens p
+let pfun_args1 = fix @@ fun p -> many1 pattern_args <|> pparens p
 
 let plet_body pargs pexpr =
   token1 pargs
@@ -146,7 +157,8 @@ let pbody_with_args pack = plet_body pfun_args (pack.expr pack)
 let pack =
   let expr pack =
     choice
-      [ pack.op pack
+      [ pack.tuple pack
+      ; pack.op pack
       ; pack.app pack
       ; pack.condition pack
       ; pack.func pack
@@ -159,7 +171,7 @@ let pack =
     choice
       [ pack.bind_in pack
       ; pack.app pack
-      ; pparens_only [ pack.op pack; pack.condition pack ]
+      ; pparens_only_pack [ pack.tuple pack; pack.op pack; pack.condition pack ]
       ; pack.evar pack
       ; pack.econst pack
       ]
@@ -170,14 +182,15 @@ let pack =
   let app_func_parsers pack =
     choice
       [ pack.evar pack
-      ; pparens_only
+      ; pparens_only_pack
           [ pack.condition pack; pack.func pack; pack.app pack; pack.bind_in pack ]
       ]
   in
   let app_args_parsers pack =
     choice
-      [ pparens_only
-          [ pack.op pack
+      [ pparens_only_pack
+          [ pack.tuple pack
+          ; pack.op pack
           ; pack.condition pack
           ; pack.func pack
           ; pack.app pack
@@ -186,6 +199,17 @@ let pack =
       ; pack.evar pack
       ; pack.econst pack
       ]
+  in
+  let tuple_parsers pack =
+    choice
+      [ pack.op pack
+      ; pack.bind_in pack
+      ; pack.app pack
+      ; pparens_only_pack [ pack.func pack; pack.tuple pack; pack.condition pack ]
+      ]
+  in
+  let tuple pack =
+    fix @@ fun m -> ptuple (tuple_parsers pack) constr_etuple <|> pparens m
   in
   let op pack =
     fix
@@ -239,7 +263,7 @@ let pack =
           (str_token1 "in" *> expr pack)
     <|> pparens @@ pack.bind_in pack
   in
-  { evar; econst; op; condition; func; bind_in; app; expr }
+  { evar; econst; op; condition; func; bind_in; app; tuple; expr }
 ;;
 
 let expr = pack.expr pack
@@ -315,6 +339,19 @@ let%expect_test _ =
   show_parsed_result "_" pattern show_pattern;
   [%expect {|
     PWild |}]
+;;
+
+let%expect_test _ =
+  show_parsed_result "1,2,3" pattern show_pattern;
+  [%expect {|
+    (PTuple [(PConst (CInt 1)); (PConst (CInt 2)); (PConst (CInt 3))]) |}]
+;;
+
+let%expect_test _ =
+  show_parsed_result "(((((1)), ((2, 3)))))" pattern show_pattern;
+  [%expect
+    {|
+    (PTuple [(PConst (CInt 1)); (PTuple [(PConst (CInt 2)); (PConst (CInt 3))])]) |}]
 ;;
 
 (**  Expression tests *)
@@ -515,6 +552,21 @@ let%expect_test _ =
              (EVar "x"))),
           (EVar "y"))),
        (EVar "z"))) |}]
+;;
+
+(**  Tuples *)
+
+let%expect_test _ =
+  show_parsed_result "1,2,3" expr show_expr;
+  [%expect {|
+    (ETuple [(EConst (CInt 1)); (EConst (CInt 2)); (EConst (CInt 3))]) |}]
+;;
+
+let%expect_test _ =
+  show_parsed_result "(((((1)), ((2, 3)))))" expr show_expr;
+  [%expect
+    {|
+    (ETuple [(EConst (CInt 1)); (ETuple [(EConst (CInt 2)); (EConst (CInt 3))])]) |}]
 ;;
 
 (**  Let and let rec *)

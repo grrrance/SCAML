@@ -5,6 +5,14 @@
 open Ast
 open Format
 
+(** Auxiliary pretty-printer for printing a list of values with separator *)
+val pp_list
+  :  formatter
+  -> (formatter -> 'a -> unit)
+  -> (unit, formatter, unit) format
+  -> 'a list
+  -> unit
+
 (** Pretty-prints a constant to a formatter *)
 val pp_const : formatter -> const -> unit
 
