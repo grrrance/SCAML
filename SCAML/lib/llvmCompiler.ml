@@ -42,7 +42,7 @@ let codegen_binop = function
   | Or -> fun x y -> build_or x y "ortmp" builder
 ;;
 
-let codegen_cexpr = function
+let rec codegen_cexpr = function
   | CBinOp (op, l, r) ->
     let* l' = codegen_imm l in
     let* r' = codegen_imm r in
@@ -66,7 +66,7 @@ let codegen_cexpr = function
               then params arg |> Base.Array.length |> const_int int_64
               else const_int int_64 argument_arg_num)
           |]
-          "paplyClosure"  
+          "paplyClosure"
           builder
       else arg
     in
@@ -91,12 +91,8 @@ let codegen_cexpr = function
           [| pointer; arg |]
           "paplyApplication"
           builder )
-;;
-
-let rec codegen_aexpr = function
-  | ACExpr e -> codegen_cexpr e
-  | AIf (cond, then_, else_) ->
-    let* cond = codegen_aexpr cond in
+  | CIf (cond, then_, else_) ->
+    let* cond = codegen_imm cond in
     let cond = snd cond in
     let zero = const_int int_64 0 in
     let cond_val = build_icmp Icmp.Ne cond zero "ifcondition" builder in
@@ -110,7 +106,7 @@ let rec codegen_aexpr = function
     let else_bb = append_block context "else_br" the_function in
     position_at_end else_bb builder;
     let* else_val = codegen_aexpr else_ in
-    let else_args, else_val = else_val in
+    let _, else_val = else_val in
     let new_else_bb = insertion_block builder in
     let merge_bb = append_block context "ifcontext" the_function in
     position_at_end merge_bb builder;
@@ -123,9 +119,11 @@ let rec codegen_aexpr = function
     position_at_end new_else_bb builder;
     build_br merge_bb builder |> ignore;
     position_at_end merge_bb builder;
-    if then_args = else_args
-    then ok (then_args, phi)
-    else error "If branches must have the same type"
+    ok (then_args, phi)
+
+
+and codegen_aexpr = function
+  | ACExpr e -> codegen_cexpr e
   | ALetIn (id, cexpr, aexpr) ->
     let* body = codegen_cexpr cexpr in
     let body_args, body = body in
@@ -187,22 +185,23 @@ let codegen_bexpr = function
     ok func
 ;;
 
-let codegen_program prog = 
-
+let codegen_program prog =
   let runtime =
-  [  declare_function
+    [ declare_function
         "addNewPaplyClosure"
         (function_type int_64 [| int_64; int_64 |])
         the_module
     ; declare_function "applyPaply" (function_type int_64 [| int_64; int_64 |]) the_module
-  ]
+    ]
   in
-  let* result = List.fold_left (fun acc bexpr ->
-    let* acc = acc in
-    let* res = codegen_bexpr bexpr in
-    ok (res :: acc)
-  )
-  (ok runtime)
-  prog
+  let* result =
+    List.fold_left
+      (fun acc bexpr ->
+        let* acc = acc in
+        let* res = codegen_bexpr bexpr in
+        ok (res :: acc))
+      (ok runtime)
+      prog
   in
   ok (List.rev result)
+;;
