@@ -1,0 +1,4 @@
+(rule
+ (deps runtime.c)
+ (targets runtime.so)
+ (action (run clang -g -fPIC -shared %{deps} -o %{targets})))
