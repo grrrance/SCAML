@@ -107,77 +107,48 @@ PAply fromPaply(PAply p)
 int64_t applyPaply(int64_t pointer, int64_t arg)
 {
     PAply p = (PAply)pointer;
+    // Create new partitial application structure for every application
+    PAply new = fromPaply(p);
 
-    p->args[p->acount] = arg;
-    p->acount++;
-    printf("Added arg %d. Total %d, account %d\n", arg, p->tcount, p->acount);
-
-    if (p->acount == p->tcount)
+    new->args[p->acount] = arg;
+    new->acount++;
+    if (new->acount == new->tcount)
     {
-        int64_t (*fn)(PAply) = invokers[p->tcount];
-        int64_t res = fn(p);
-        free(p->args);
-        free(p);
-        printf("Returned result %d", res);
+        int64_t (*fn)(PAply) = invokers[new->tcount];
+        int64_t res = fn(new);
+        free(new->args);
+        free(new);
         return res;
     }
     else
     {
-        if (p->acount > p->tcount)
+        if (new->acount > new->tcount)
         {
             printf("Error: too many arguments applied\n");
             exit(1);
         }
         
     }
-    printf("pointer returned %d", (int64_t)p);
-    return pointer;
-}
-
-// Array of closures
-
-int64_t *paplys = NULL;
-int paplys_size = 0;
-int paplys_count = 0;
-
-void resizePaplys()
-{
-    if (paplys_count == paplys_size)
-    {
-        paplys_size = paplys_size * 2 + 1;
-        paplys = (int64_t *)realloc(paplys, sizeof(int64_t) * paplys_size);
-        printf("resized\n");
-    }
-}
-
-static PAply isInPaplys(PAply *p)
-{
-    for (int i = 0; i < paplys_count; i++)
-    {
-        if (paplys[i] == (int64_t)p)
-        {
-            return (PAply)paplys[i];
-        }
-    }
-    return NULL;
+    return (int64_t)new;
 }
 
 int64_t addNewPaplyClosure(int64_t func, int tcount)
 {
-    resizePaplys();
     int64_t* fn = (int64_t*)func;
-    PAply isAlreadyPaply = isInPaplys((PAply *)fn);
     PAply new = NULL;
-    if (isAlreadyPaply != NULL)
+    if (tcount == -1)
     {
-        new = fromPaply(isAlreadyPaply);
+        printf("Error: creation partitial applyig for variable");
+        exit(1);
     }
-    else
-    {
-        new = newPaply(fn, tcount);
+    new = newPaply(fn, tcount);
+    // Yes, it ends up being a memory leak but I don't know of a way to detect at runtime which closures are no longer needed
+    if (tcount == 0){
+        int64_t (*fn)(PAply) = invokers[new->tcount];
+        int64_t res = fn(new);
+        free(new->args);
+        free(new);
+        return res;
     }
-    paplys[paplys_count] = (int64_t) new;
-    paplys_count++;
-    printf("Pointer added %d\n", (int64_t) new);
     return (int64_t) new;
 }

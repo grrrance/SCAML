@@ -34,8 +34,6 @@ let codegen_imm = function
         | None -> error "Unknown variable"))
 ;;
 
-(* fix and add global functions*)
-
 let codegen_binop = function
   | Add -> fun x y -> build_add x y "addtmp" builder
   | Sub -> fun x y -> build_sub x y "subtmp" builder
