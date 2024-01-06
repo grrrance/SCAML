@@ -23,6 +23,7 @@ type ty =
   | TUnit
   | TVar of binder
   | TArrow of ty * ty
+  | TTuple of ty list
 [@@deriving show { with_path = false }]
 
 type error =

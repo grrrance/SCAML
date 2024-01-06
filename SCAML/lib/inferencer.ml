@@ -85,6 +85,7 @@ module Type = struct
   let rec occurs_in v = function
     | TVar b -> b = v
     | TArrow (l, r) -> occurs_in v l || occurs_in v r
+    | TTuple ts -> List.exists ~f:(occurs_in v) ts
     | TInt | TBool | TUnit -> false
   ;;
 
@@ -92,6 +93,7 @@ module Type = struct
     let rec helper acc = function
       | TVar b -> VarSet.add b acc
       | TArrow (l, r) -> helper (helper acc l) r
+      | TTuple ts -> List.fold_left ~f:helper ~init:acc ts
       | TInt | TBool | TUnit -> acc
     in
     helper VarSet.empty

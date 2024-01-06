@@ -27,6 +27,7 @@ type ty =
   | TUnit
   | TVar of binder
   | TArrow of ty * ty
+  | TTuple of ty list
 [@@deriving show { with_path = false }]
 
 type error =
@@ -42,6 +43,7 @@ let int_typ = TInt
 let bool_typ = TBool
 let unit_typ = TUnit
 let v x = TVar x
+let tuple ts = TTuple ts
 
 let rec pp_typ ppf = function
   | TVar n -> fprintf ppf "%s" @@ "'" ^ Char.escaped (Char.chr (n + 97))
@@ -52,6 +54,8 @@ let rec pp_typ ppf = function
      | TArrow (_, _) -> fprintf ppf "(%a) -> %a" pp_typ l pp_typ r
      | _ -> fprintf ppf "%a -> %a" pp_typ l pp_typ r)
   | TUnit -> fprintf ppf "()"
+  | TTuple ts ->
+    fprintf ppf "(%a)" (pp_print_list ~pp_sep:(fun ppf () -> fprintf ppf " * ") pp_typ) ts
 ;;
 
 let pp_scheme ppf = function
