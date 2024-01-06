@@ -105,7 +105,7 @@ and codegen_aexpr = function
   | ALetIn (id, cexpr, aexpr) ->
     let* body = codegen_cexpr cexpr in
     let alloca = build_alloca int_64 id builder in
-    build_store body alloca builder |> ignore;
+    let (_: Llvm.llvalue) = build_store body alloca builder in
     Hashtbl.add named_values id alloca;
     codegen_aexpr aexpr
 ;;
