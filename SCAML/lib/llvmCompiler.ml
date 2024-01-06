@@ -1,3 +1,7 @@
+(** Copyright 2023-2024, Grigory Aseev and Matvey Kalashnikov *)
+
+(** SPDX-License-Identifier: LGPL-3.0 *)
+
 open RestrictedAst
 open Llvm
 open Result
@@ -20,17 +24,17 @@ let codegen_imm = function
      | Some v -> ok (build_load int_64 v id builder)
      | None ->
        (match lookup_function id the_module with
-       (*Возвращаем замыкание глобальной функции*)
-        | Some v ->  ok (
-        build_call
-        (function_type int_64 [| int_64; int_64 |])
-        (Option.get (lookup_function "addNewPaplyClosure" the_module))
-        [| build_pointercast v int_64 "cast_pointer_to_int" builder
-         ; (params v |> Base.Array.length |> const_int int_64)
-        |]
-        "paplyClosure"
-        builder
-        )
+        (*Возвращаем замыкание глобальной функции*)
+        | Some v ->
+          ok
+            (build_call
+               (function_type int_64 [| int_64; int_64 |])
+               (Option.get (lookup_function "addNewPaplyClosure" the_module))
+               [| build_pointercast v int_64 "cast_pointer_to_int" builder
+                ; params v |> Base.Array.length |> const_int int_64
+               |]
+               "paplyClosure"
+               builder)
         | None -> error "Unknown variable"))
 ;;
 
@@ -59,16 +63,15 @@ let rec codegen_cexpr = function
   | CImmExpr e -> codegen_imm e
   | CApp (func, argument) ->
     let* calee = codegen_imm func in
-    let* arg = codegen_imm argument
-    in
+    let* arg = codegen_imm argument in
     (*Применяем аргумент к Существующему замыканию*)
     ok
       (build_call
-          (function_type int_64 [| int_64; int_64 |])
-          (Option.get (lookup_function "applyPaply" the_module))
-          [| calee; arg |]
-          "paplyApplication"
-          builder )
+         (function_type int_64 [| int_64; int_64 |])
+         (Option.get (lookup_function "applyPaply" the_module))
+         [| calee; arg |]
+         "paplyApplication"
+         builder)
   | CIf (cond, then_, else_) ->
     let* cond = codegen_imm cond in
     let cond = cond in
@@ -89,14 +92,13 @@ let rec codegen_cexpr = function
     let incoming = [ then_val, new_then_bb; else_val, new_else_bb ] in
     let phi = build_phi incoming "ifphi" builder in
     position_at_end start_bb builder;
-    build_cond_br cond_val then_bb else_bb builder |> ignore;
+    let (_ : Llvm.llvalue) = build_cond_br cond_val then_bb else_bb builder in
     position_at_end new_then_bb builder;
-    build_br merge_bb builder |> ignore;
+    let (_ : Llvm.llvalue) = build_br merge_bb builder in
     position_at_end new_else_bb builder;
-    build_br merge_bb builder |> ignore;
+    let (_ : Llvm.llvalue) = build_br merge_bb builder in
     position_at_end merge_bb builder;
     ok phi
-
 
 and codegen_aexpr = function
   | ACExpr e -> codegen_cexpr e
@@ -138,7 +140,7 @@ let codegen_bexpr = function
       (fun i a ->
         let name = List.nth names i in
         let alloca = build_alloca int_64 name builder in
-        build_store a alloca builder |> ignore;
+        let (_ : Llvm.llvalue) = build_store a alloca builder in
         Hashtbl.add named_values name alloca)
       (params func);
     let* ret_val = codegen_aexpr body in
