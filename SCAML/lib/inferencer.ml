@@ -468,7 +468,7 @@ let%expect_test _ =
        , PTuple [ PVar "x"; PVar "y" ]
        , ETuple [ EConst (CInt 5); EConst (CInt 5) ]
        , EVar "x" ));
-  [%expect {| 'a |}]
+  [%expect {| int |}]
 ;;
 
 let%expect_test _ =
