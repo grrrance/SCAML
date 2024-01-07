@@ -359,8 +359,9 @@ let infer =
     | ELetIn (false, pattern, e1, e2) ->
       let* s1, t1 = helper env e1 in
       let* env, s2, t2 = infer_pattern env pattern in
-      let* s3 = unify t1 t2 in
+      let* s3 = unify t1 (Subst.apply s1 t2) in
       let* s4 = Subst.compose_all [ s3; s2; s1 ] in
+      let env = TypeEnv.apply s4 env in
       let* s5, t3 = helper env e2 in
       let* final_subst = Subst.compose s4 s5 in
       return (final_subst, t3)
