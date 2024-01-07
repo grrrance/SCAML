@@ -461,6 +461,26 @@ let%expect_test _ =
   [%expect {| 'a -> 'b -> 'c -> int |}]
 ;;
 
+let%expect_test _ =
+  print_result
+    (ELetIn
+       ( false
+       , PTuple [ PVar "x"; PVar "y" ]
+       , ETuple [ EConst (CInt 5); EConst (CInt 5) ]
+       , EVar "x" ));
+  [%expect {| 'a |}]
+;;
+
+let%expect_test _ =
+  print_result
+    (ELetIn
+       ( false
+       , PVar "snd"
+       , EFun (PTuple [ PVar "x"; PVar "y" ], EVar "y")
+       , EApp (EVar "snd", ETuple [ EConst (CInt 1); EConst (CInt 2) ]) ));
+  [%expect {| int |}]
+;;
+
 let%expect_test "let rec series n = if n = 1 then 1 else n + series (n - 1)" =
   print_prog_result
     [ ELet
@@ -614,4 +634,18 @@ let%expect_test "let a = 10 \n let incr x = x + 1 \n let incremented_a = k + 1 "
     ; ELet (false, PVar "incremented_a", EBinOp (Add, EVar "k", EConst (CInt 1)))
     ];
   [%expect {| Undefined variable 'k' |}]
+;;
+
+let%expect_test "let x,y = 5, 5" =
+  print_prog_result
+    [ ELet
+        (false, PTuple [ PVar "x"; PVar "y" ], ETuple [ EConst (CInt 5); EConst (CInt 5) ])
+    ];
+  [%expect {| (x, y) : (int * int) |}]
+;;
+
+let%expect_test "let snd (x,y) = y" =
+  print_prog_result
+    [ ELet (false, PVar "snd", EFun (PTuple [ PVar "x"; PVar "y" ], EVar "y")) ];
+  [%expect {| snd : ('a * 'b) -> 'b |}]
 ;;
