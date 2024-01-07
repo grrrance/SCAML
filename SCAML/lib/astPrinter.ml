@@ -35,7 +35,7 @@ let pp_bin_op fmt = function
   | Mod -> fprintf fmt "%%"
 ;;
 
-let pp_pattern fmt = function
+let rec pp_pattern fmt = function
   | PVar x -> fprintf fmt "%s" x
   | PConst c -> pp_const fmt c
   | PWild -> fprintf fmt "_"

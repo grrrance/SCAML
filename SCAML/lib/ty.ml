@@ -34,6 +34,7 @@ type error =
   [ `Occurs_check
   | `No_variable of string
   | `Unification_failed of ty * ty
+  | `Incorrect_expression
   ]
 
 type scheme = S of binder_set * ty
@@ -43,7 +44,6 @@ let int_typ = TInt
 let bool_typ = TBool
 let unit_typ = TUnit
 let v x = TVar x
-let tuple ts = TTuple ts
 
 let rec pp_typ ppf = function
   | TVar n -> fprintf ppf "%s" @@ "'" ^ Char.escaped (Char.chr (n + 97))
@@ -72,6 +72,8 @@ let pp_error ppf : error -> _ = function
   | `No_variable s -> Format.fprintf ppf "Undefined variable '%s'" s
   | `Unification_failed (l, r) ->
     Format.fprintf ppf "unification failed on %a and %a" pp_typ l pp_typ r
+  | `Incorrect_expression ->
+    Format.fprintf ppf "Inappropriate expression of type"
 ;;
 
 let print_typ_err e =

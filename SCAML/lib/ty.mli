@@ -30,6 +30,7 @@ type error =
   [ `Occurs_check
   | `No_variable of string
   | `Unification_failed of ty * ty
+  | `Incorrect_expression
   ]
 
 type scheme = S of binder_set * ty
