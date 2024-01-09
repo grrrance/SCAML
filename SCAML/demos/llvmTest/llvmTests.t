@@ -50,3 +50,8 @@
   > EOF
   [120]
 
+  $ ./llvmTests.exe <<- EOF | lli-16 -load ../../lib/runtime/runtime.so
+  > let rec foo a1  a1  a1  a1  a1  a1  a1  a1  a1  a1  a1  a1  a1 = a1
+  > let main = foo 1
+  > EOF
+  [120]
