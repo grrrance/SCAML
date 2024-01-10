@@ -132,7 +132,7 @@ int64_t applyPaply(int64_t pointer, int64_t arg)
     return (int64_t)new;
 }
 
-int64_t addNewPaplyClosure(int64_t func, int tcount)
+int64_t addNewPaplyClosure(int64_t func, int64_t tcount)
 {
     int64_t* fn = (int64_t*)func;
     PAply new = NULL;
