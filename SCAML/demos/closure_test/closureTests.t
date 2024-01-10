@@ -48,4 +48,27 @@
   > fibo_cps n (fun x -> x)
   > EOF
   let  fibo n  = let rec fibo_cps n acc  = if (n < 3) then acc 1 else fibo_cps (n - 1) (fun acc -> (fun fibo_cps -> (fun n -> (fun x -> fibo_cps (n - 2) (fun acc -> (fun x -> (fun y -> acc (x + y)))) acc x)))) acc fibo_cps n in fibo_cps n (fun x -> x)
+  $ ./closureTests.exe <<-EOF
+  > let a,b = 1,2
+  > let c = a + b
+  > let test a =
+  > let m,k,l = a in
+  > let n = m + 2 in
+  > let snd (s, t) = t in
+  > let thrd (f, g, h) = h in
+  > thrd (m,k,l)
+  > EOF
+  let  (a, b)  = (1, 2)
+  let  c  = (a + b)
+  let  test a  = let  (m, k, l)  = a in let  n  = (m + 2) in let  snd (s, t)  = t in let  thrd (f, g, h)  = h in thrd (m, k, l)
+  $ ./closureTests.exe <<-EOF
+  > let test c d = 
+  > let a k =
+  > let m,n =k in
+  > let dnd (g,h) = h in
+  > dnd (c,n)
+  > in
+  > a
+  > EOF
+  let  test c d  = let  a c k  = let  (m, n)  = k in let  dnd (g, h)  = h in dnd (c, n) in a c
 
