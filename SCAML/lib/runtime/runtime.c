@@ -136,9 +136,9 @@ int64_t addNewPaplyClosure(int64_t func, int tcount)
 {
     int64_t* fn = (int64_t*)func;
     PAply new = NULL;
-    if (tcount == -1)
+    if (tcount > 10)
     {
-        printf("Error: creation partitial applyig for variable");
+        printf("Error: сannot create a function with more than 10 arguments");
         exit(1);
     }
     new = newPaply(fn, tcount);
