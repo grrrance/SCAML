@@ -27,12 +27,14 @@ type ty =
   | TUnit
   | TVar of binder
   | TArrow of ty * ty
+  | TTuple of ty list
 [@@deriving show { with_path = false }]
 
 type error =
   [ `Occurs_check
   | `No_variable of string
   | `Unification_failed of ty * ty
+  | `Incorrect_expression
   ]
 
 type scheme = S of binder_set * ty
@@ -52,6 +54,8 @@ let rec pp_typ ppf = function
      | TArrow (_, _) -> fprintf ppf "(%a) -> %a" pp_typ l pp_typ r
      | _ -> fprintf ppf "%a -> %a" pp_typ l pp_typ r)
   | TUnit -> fprintf ppf "()"
+  | TTuple ts ->
+    fprintf ppf "(%a)" (pp_print_list ~pp_sep:(fun ppf () -> fprintf ppf " * ") pp_typ) ts
 ;;
 
 let pp_scheme ppf = function
@@ -68,6 +72,8 @@ let pp_error ppf : error -> _ = function
   | `No_variable s -> Format.fprintf ppf "Undefined variable '%s'" s
   | `Unification_failed (l, r) ->
     Format.fprintf ppf "unification failed on %a and %a" pp_typ l pp_typ r
+  | `Incorrect_expression ->
+    Format.fprintf ppf "Inappropriate expression of type"
 ;;
 
 let print_typ_err e =

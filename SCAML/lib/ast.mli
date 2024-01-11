@@ -34,6 +34,7 @@ type pattern =
   | PWild (** _ *)
   | PConst of const (** 1 *)
   | PVar of id (** abc *)
+  | PTuple of pattern list (**  a, b *)
 [@@deriving show { with_path = false }]
 
 (** The type of expressions *)
@@ -43,12 +44,13 @@ type expr =
   | EVar of id (**  abc *)
   | EIf of expr * expr * expr (** if x > 0 then x else 0 *)
   | EFun of pattern * expr (** fun x -> x * 2 *)
-  | ELetIn of bool * id * expr * expr (** let [rec] f x = e in e' *)
+  | ELetIn of bool * pattern * expr * expr (** let [rec] f x = e in e' *)
   | EApp of expr * expr (** f x *)
+  | ETuple of expr list (**  1, 2 *)
 [@@deriving show { with_path = false }]
 
 (** The type of bindings *)
-type binding = ELet of bool * id * expr (** let [rec] f x = e *)
+type binding = ELet of bool * pattern * expr (** let [rec] f x = e *)
 [@@deriving show { with_path = false }]
 
 (** The type of programs *)
@@ -64,6 +66,7 @@ val constr_cbool : bool -> const
 val constr_pwild : string -> pattern
 val constr_pconst : const -> pattern
 val constr_pvar : id -> pattern
+val constr_ptuple : pattern list -> pattern
 
 (**  Operation constructor *)
 val constr_ebinop : bin_op -> expr -> expr -> expr
@@ -74,8 +77,9 @@ val constr_econst : const -> expr
 val constr_evar : id -> expr
 val constr_eif : expr -> expr -> expr -> expr
 val constr_efun : pattern list -> expr -> expr
-val constr_eletin : bool -> id -> expr -> expr -> expr
+val constr_eletin : bool -> pattern -> expr -> expr -> expr
 val constr_eapp : expr -> expr list -> expr
+val constr_etuple : expr list -> expr
 
 (**  Binding constructor *)
-val constr_elet : bool -> id -> expr -> binding
+val constr_elet : bool -> pattern -> expr -> binding

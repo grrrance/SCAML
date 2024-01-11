@@ -32,3 +32,36 @@
   acc2 : (int -> (int -> 'k) -> 'n) -> int -> (int -> 'k) -> int -> 'n
   fibo_cps : int -> (int -> 'y) -> 'y
   fibo : int -> int
+  $ ./inferencerTests.exe <<-EOF
+  > let a,b = (1,2)
+  > let c = a + b
+  > let k = (true,false)
+  > let l = (1,2,3)
+  > let b,n,m = l
+  > let snd (x,y) = y
+  > let (x, (a,b)) = (1, (false,3))
+  > EOF
+  (a, b) : (int * int)
+  c : int
+  k : (bool * bool)
+  l : (int * int * int)
+  (b, n, m) : (int * int * int)
+  snd : ('f * 'g) -> 'g
+  (x, (a, b)) : (int * (bool * int))
+  $ ./inferencerTests.exe <<-EOF
+  > let a, _ = (1, 2)
+  > EOF
+  (a, _) : (int * int)
+  $ ./inferencerTests.exe <<-EOF
+  > let (a ,b ,c) = (1,2)
+  > EOF
+  unification failed on (int * int) and ('a * 'b * 'c)
+  $ ./inferencerTests.exe <<-EOF
+  > let (a, (b, c)) = (1,2, 3)
+  > EOF
+  unification failed on (int * int * int) and ('a * ('b * 'c))
+  $ ./inferencerTests.exe <<-EOF
+  > let k = 
+  > let (x, y) = (5,5) in x
+  > EOF
+  k : int

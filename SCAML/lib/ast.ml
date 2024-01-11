@@ -30,6 +30,7 @@ type pattern =
   | PWild (** _ *)
   | PConst of const (** 1 *)
   | PVar of id (** abc *)
+  | PTuple of pattern list (**  a, b *)
 [@@deriving show { with_path = false }]
 
 type expr =
@@ -38,11 +39,12 @@ type expr =
   | EVar of id (**  abc *)
   | EIf of expr * expr * expr (** if x > 0 then x else 0 *)
   | EFun of pattern * expr (** fun x -> x * 2 *)
-  | ELetIn of bool * id * expr * expr (** let [rec] f x = e in e' *)
+  | ELetIn of bool * pattern * expr * expr (** let [rec] f x = e in e' *)
   | EApp of expr * expr (** f x *)
+  | ETuple of expr list (**  1, 2 *)
 [@@deriving show { with_path = false }]
 
-type binding = ELet of bool * id * expr (** let [rec] f x = e *)
+type binding = ELet of bool * pattern * expr (** let [rec] f x = e *)
 [@@deriving show { with_path = false }]
 
 (** e1 ;; e2 ;; ... ;; en;; *)
@@ -58,6 +60,7 @@ let constr_cbool b = CBool b
 let constr_pwild _ = PWild
 let constr_pconst c = PConst c
 let constr_pvar id = PVar id
+let constr_ptuple pats = PTuple pats
 
 (**  Operation constructor *)
 let constr_ebinop binary_op expr1 expr2 = EBinOp (binary_op, expr1, expr2)
@@ -70,6 +73,7 @@ let constr_eif e1 e2 e3 = EIf (e1, e2, e3)
 let constr_efun pl e = List.fold_right (fun p e -> EFun (p, e)) pl e
 let constr_eletin b id e1 e2 = ELetIn (b, id, e1, e2)
 let constr_eapp f args = List.fold_left (fun f arg -> EApp (f, arg)) f args
+let constr_etuple exprs = ETuple exprs
 
 (**  Binding constructor *)
 let constr_elet b id e = ELet (b, id, e)

@@ -85,6 +85,7 @@ module Type = struct
   let rec occurs_in v = function
     | TVar b -> b = v
     | TArrow (l, r) -> occurs_in v l || occurs_in v r
+    | TTuple ts -> List.exists ~f:(occurs_in v) ts
     | TInt | TBool | TUnit -> false
   ;;
 
@@ -92,6 +93,7 @@ module Type = struct
     let rec helper acc = function
       | TVar b -> VarSet.add b acc
       | TArrow (l, r) -> helper (helper acc l) r
+      | TTuple ts -> List.fold_left ~f:helper ~init:acc ts
       | TInt | TBool | TUnit -> acc
     in
     helper VarSet.empty
@@ -138,6 +140,7 @@ end = struct
          | None -> ty
          | Some x -> x)
       | TArrow (l, r) -> TArrow (helper l, helper r)
+      | TTuple ts -> TTuple (List.map ~f:helper ts)
       | other -> other
     in
     helper
@@ -152,6 +155,11 @@ end = struct
       let* subs1 = unify l1 l2 in
       let* subs2 = unify (apply subs1 r1) (apply subs1 r2) in
       compose subs1 subs2
+    | TTuple ts1, TTuple ts2 when List.length ts1 = List.length ts2 ->
+      List.fold2_exn ts1 ts2 ~init:(return empty) ~f:(fun acc l r ->
+        let* acc = acc in
+        let* s = unify l r in
+        compose acc s)
     | _ -> fail (`Unification_failed (l, r))
 
   and extend s (k, v) =
@@ -249,6 +257,37 @@ let lookup_env e xs =
     return (Subst.empty, ans)
 ;;
 
+let infer_pattern =
+  let rec (pattern_helper : TypeEnv.t -> Ast.pattern -> (TypeEnv.t * Subst.t * ty) R.t) =
+    fun env -> function
+    | PVar x ->
+      let* tv = fresh_var in
+      let env = TypeEnv.extend env (x, S (VarSet.empty, tv)) in
+      return (env, Subst.empty, tv)
+    | PConst c ->
+      (match c with
+       | CInt _ -> return (env, Subst.empty, int_typ)
+       | CBool _ -> return (env, Subst.empty, bool_typ)
+       | CUnit -> return (env, Subst.empty, unit_typ))
+    | PWild ->
+      let* fresh = fresh_var in
+      return (env, Subst.empty, fresh)
+    | PTuple p ->
+      let rec helper env s = function
+        | [] -> return (env, s, [])
+        | h :: tl ->
+          let* env, s1, t1 = pattern_helper env h in
+          let* s' = Subst.compose_all [ s1; s ] in
+          let* env, s2, t2 = helper env s' tl in
+          return (env, s2, t1 :: t2)
+      in
+      let* env, s, t = helper env Subst.empty p in
+      let applied = List.map ~f:(Subst.apply s) t in
+      return (env, s, TTuple applied)
+  in
+  pattern_helper
+;;
+
 let infer =
   let rec (helper : TypeEnv.t -> Ast.expr -> (Subst.t * ty) R.t) =
     fun env -> function
@@ -272,15 +311,12 @@ let infer =
          return (sres, bool_typ))
     | EVar x -> lookup_env x env
     | EFun (p, e1) ->
-      let* tv = fresh_var in
-      let* env2 =
-        match p with
-        | PVar x -> return (TypeEnv.extend env (x, S (VarSet.empty, tv)))
-        | _ -> return env
-      in
+      let* env, s1, t1 = infer_pattern env p in
+      let env2 = TypeEnv.apply s1 env in
       let* s, ty = helper env2 e1 in
-      let trez = TArrow (Subst.apply s tv, ty) in
-      return (s, trez)
+      let trez = TArrow (Subst.apply s t1, ty) in
+      let* final_subst = Subst.compose_all [ s; s1 ] in
+      return (final_subst, trez)
     | EApp (e1, e2) ->
       let* s1, t1 = helper env e1 in
       let* s2, t2 = helper (TypeEnv.apply s1 env) e2 in
@@ -302,14 +338,14 @@ let infer =
       let* s5 = unify t2 t3 in
       let* final_subst = Subst.compose_all [ s5; s4; s3; s2; s1 ] in
       R.return (final_subst, Subst.apply s5 t2)
-    | ELetIn (false, id, e1, e2) ->
+    | ELetIn (false, PVar id, e1, e2) ->
       let* s1, t1 = helper env e1 in
       let env2 = TypeEnv.apply s1 env in
       let t2 = generalize env2 t1 in
       let* s2, t3 = helper (TypeEnv.extend env2 (id, t2)) e2 in
       let* final_subst = Subst.compose s1 s2 in
       return (final_subst, t3)
-    | ELetIn (true, id, e1, e2) ->
+    | ELetIn (true, PVar id, e1, e2) ->
       let* tv = fresh_var in
       let env = TypeEnv.extend env (id, S (VarSet.empty, tv)) in
       let* s1, t1 = helper env e1 in
@@ -320,6 +356,28 @@ let infer =
       let* s2, t2 = helper TypeEnv.(extend (apply s env) (id, t2)) e2 in
       let* final_subst = Subst.compose s s2 in
       return (final_subst, t2)
+    | ELetIn (false, pattern, e1, e2) ->
+      let* s1, t1 = helper env e1 in
+      let* env, s2, t2 = infer_pattern env pattern in
+      let* s3 = unify t1 (Subst.apply s1 t2) in
+      let* s4 = Subst.compose_all [ s3; s2; s1 ] in
+      let env = TypeEnv.apply s4 env in
+      let* s5, t3 = helper env e2 in
+      let* final_subst = Subst.compose s4 s5 in
+      return (final_subst, t3)
+    | ETuple tuple ->
+      let rec tuple_helper s = function
+        | [] -> return (s, [])
+        | h :: tl ->
+          let* s1, t1 = helper env h in
+          let* s2 = Subst.compose s1 s in
+          let* s3, t2 = tuple_helper s2 tl in
+          return (s3, t1 :: t2)
+      in
+      let* s, t = tuple_helper Subst.empty tuple in
+      let applied = List.map ~f:(Subst.apply s) t in
+      return (s, TTuple applied)
+    | _ -> fail `Incorrect_expression
   in
   helper
 ;;
@@ -332,14 +390,14 @@ let infer_prog prog =
     match prog with
     | h :: tl ->
       (match h with
-       | ELet (false, id, expr) ->
+       | ELet (false, PVar id, expr) ->
          let* s, t = infer env expr in
          let env = TypeEnv.apply s env in
          let t = generalize env t in
          let env = TypeEnv.extend env (id, t) in
          let l1 = l @ [ id, sc_to_type t ] in
          helper env tl l1
-       | ELet (true, id, expr) ->
+       | ELet (true, PVar id, expr) ->
          let* tv = fresh_var in
          let env = TypeEnv.extend env (id, S (VarSet.empty, tv)) in
          let* s, t = infer env expr in
@@ -349,7 +407,17 @@ let infer_prog prog =
          let t = generalize env (Subst.apply s tv) in
          let env = TypeEnv.extend env (id, t) in
          let l1 = l @ [ id, sc_to_type t ] in
-         helper env tl l1)
+         helper env tl l1
+       | ELet (false, pattern, expr) ->
+         let* s, t = infer env expr in
+         let* env, s2, t2 = infer_pattern env pattern in
+         let* s3 = unify t (Subst.apply s t2) in
+         let* s4 = Subst.compose_all [ s3; s2; s ] in
+         let env = TypeEnv.apply s4 env in
+         let pattern_str = Stdlib.Format.asprintf "%a" AstPrinter.pp_pattern pattern in
+         let l1 = l @ [ pattern_str, Subst.apply s4 t2 ] in
+         helper env tl l1
+       | _ -> fail `Incorrect_expression)
     | [] -> return l
   in
   helper TypeEnv.empty prog []
@@ -374,7 +442,7 @@ let%expect_test _ =
   print_result
     (ELetIn
        ( true
-       , "fac"
+       , PVar "fac"
        , EFun
            ( PVar "n"
            , EIf
@@ -393,11 +461,31 @@ let%expect_test _ =
   [%expect {| 'a -> 'b -> 'c -> int |}]
 ;;
 
+let%expect_test _ =
+  print_result
+    (ELetIn
+       ( false
+       , PTuple [ PVar "x"; PVar "y" ]
+       , ETuple [ EConst (CInt 5); EConst (CInt 5) ]
+       , EVar "x" ));
+  [%expect {| int |}]
+;;
+
+let%expect_test _ =
+  print_result
+    (ELetIn
+       ( false
+       , PVar "snd"
+       , EFun (PTuple [ PVar "x"; PVar "y" ], EVar "y")
+       , EApp (EVar "snd", ETuple [ EConst (CInt 1); EConst (CInt 2) ]) ));
+  [%expect {| int |}]
+;;
+
 let%expect_test "let rec series n = if n = 1 then 1 else n + series (n - 1)" =
   print_prog_result
     [ ELet
         ( true
-        , "series"
+        , PVar "series"
         , EFun
             ( PVar "n"
             , EIf
@@ -414,12 +502,14 @@ let%expect_test "let rec series n = if n = 1 then 1 else n + series (n - 1)" =
 
 let%expect_test "let bind x f = f x" =
   print_prog_result
-    [ ELet (false, "bind", EFun (PVar "x", EFun (PVar "f", EApp (EVar "f", EVar "x")))) ];
+    [ ELet
+        (false, PVar "bind", EFun (PVar "x", EFun (PVar "f", EApp (EVar "f", EVar "x"))))
+    ];
   [%expect {| bind : 'a -> ('a -> 'c) -> 'c |}]
 ;;
 
 let%expect_test "let x = 10" =
-  print_prog_result [ ELet (false, "x", EConst (CInt 10)) ];
+  print_prog_result [ ELet (false, PVar "x", EConst (CInt 10)) ];
   [%expect {| x : int |}]
 ;;
 
@@ -431,7 +521,7 @@ let%expect_test "let rec factorial n =\n\
   print_prog_result
     [ ELet
         ( true
-        , "factorial"
+        , PVar "factorial"
         , EFun
             ( PVar "n"
             , EIf
@@ -448,16 +538,18 @@ let%expect_test "let rec factorial n =\n\
 let%expect_test "let mult x = fun y -> x * y" =
   print_prog_result
     [ ELet
-        (false, "mult", EFun (PVar "x", EFun (PVar "y", EBinOp (Mul, EVar "x", EVar "y"))))
+        ( false
+        , PVar "mult"
+        , EFun (PVar "x", EFun (PVar "y", EBinOp (Mul, EVar "x", EVar "y"))) )
     ];
   [%expect {| mult : int -> int -> int |}]
 ;;
 
 let%expect_test "let a = 10 \n let incr x = x + 1 \n let incremented_a = a + 1 " =
   print_prog_result
-    [ ELet (false, "a", EConst (CInt 10))
-    ; ELet (false, "incr", EFun (PVar "x", EBinOp (Add, EVar "x", EConst (CInt 1))))
-    ; ELet (false, "incremented_a", EBinOp (Add, EVar "a", EConst (CInt 1)))
+    [ ELet (false, PVar "a", EConst (CInt 10))
+    ; ELet (false, PVar "incr", EFun (PVar "x", EBinOp (Add, EVar "x", EConst (CInt 1))))
+    ; ELet (false, PVar "incremented_a", EBinOp (Add, EVar "a", EConst (CInt 1)))
     ];
   [%expect {|
     a : int
@@ -475,12 +567,12 @@ let%expect_test "let a = 10\n\
                  let k1 = compare a b c2"
   =
   print_prog_result
-    [ ELet (false, "a", EConst (CInt 10))
-    ; ELet (false, "b", EConst (CInt 11))
-    ; ELet (false, "c", EBinOp (Add, EVar "a", EVar "b"))
+    [ ELet (false, PVar "a", EConst (CInt 10))
+    ; ELet (false, PVar "b", EConst (CInt 11))
+    ; ELet (false, PVar "c", EBinOp (Add, EVar "a", EVar "b"))
     ; ELet
         ( false
-        , "c1"
+        , PVar "c1"
         , EFun
             ( PVar "a"
             , EFun
@@ -491,7 +583,7 @@ let%expect_test "let a = 10\n\
                     , EConst (CBool false) ) ) ) )
     ; ELet
         ( false
-        , "c2"
+        , PVar "c2"
         , EFun
             ( PVar "a"
             , EFun
@@ -502,14 +594,19 @@ let%expect_test "let a = 10\n\
                     , EConst (CBool false) ) ) ) )
     ; ELet
         ( false
-        , "compare"
+        , PVar "compare"
         , EFun
             ( PVar "l"
             , EFun (PVar "r", EFun (PVar "c", EApp (EApp (EVar "c", EVar "l"), EVar "r")))
             ) )
-    ; ELet (false, "k", EApp (EApp (EApp (EVar "compare", EVar "a"), EVar "b"), EVar "c1"))
     ; ELet
-        (false, "k1", EApp (EApp (EApp (EVar "compare", EVar "a"), EVar "b"), EVar "c2"))
+        ( false
+        , PVar "k"
+        , EApp (EApp (EApp (EVar "compare", EVar "a"), EVar "b"), EVar "c1") )
+    ; ELet
+        ( false
+        , PVar "k1"
+        , EApp (EApp (EApp (EVar "compare", EVar "a"), EVar "b"), EVar "c2") )
     ];
   [%expect
     {|
@@ -525,15 +622,30 @@ let%expect_test "let a = 10\n\
 
 let%expect_test "let f x = x + true" =
   print_prog_result
-    [ ELet (false, "f", EFun (PVar "x", EBinOp (Add, EVar "x", EConst (CBool true)))) ];
+    [ ELet (false, PVar "f", EFun (PVar "x", EBinOp (Add, EVar "x", EConst (CBool true))))
+    ];
   [%expect {| unification failed on bool and int |}]
 ;;
 
 let%expect_test "let a = 10 \n let incr x = x + 1 \n let incremented_a = k + 1 " =
   print_prog_result
-    [ ELet (false, "a", EConst (CInt 10))
-    ; ELet (false, "incr", EFun (PVar "x", EBinOp (Add, EVar "x", EConst (CInt 1))))
-    ; ELet (false, "incremented_a", EBinOp (Add, EVar "k", EConst (CInt 1)))
+    [ ELet (false, PVar "a", EConst (CInt 10))
+    ; ELet (false, PVar "incr", EFun (PVar "x", EBinOp (Add, EVar "x", EConst (CInt 1))))
+    ; ELet (false, PVar "incremented_a", EBinOp (Add, EVar "k", EConst (CInt 1)))
     ];
   [%expect {| Undefined variable 'k' |}]
+;;
+
+let%expect_test "let x,y = 5, 5" =
+  print_prog_result
+    [ ELet
+        (false, PTuple [ PVar "x"; PVar "y" ], ETuple [ EConst (CInt 5); EConst (CInt 5) ])
+    ];
+  [%expect {| (x, y) : (int * int) |}]
+;;
+
+let%expect_test "let snd (x,y) = y" =
+  print_prog_result
+    [ ELet (false, PVar "snd", EFun (PTuple [ PVar "x"; PVar "y" ], EVar "y")) ];
+  [%expect {| snd : ('a * 'b) -> 'b |}]
 ;;

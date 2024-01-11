@@ -23,12 +23,14 @@ type ty =
   | TUnit
   | TVar of binder
   | TArrow of ty * ty
+  | TTuple of ty list
 [@@deriving show { with_path = false }]
 
 type error =
   [ `Occurs_check
   | `No_variable of string
   | `Unification_failed of ty * ty
+  | `Incorrect_expression
   ]
 
 type scheme = S of binder_set * ty

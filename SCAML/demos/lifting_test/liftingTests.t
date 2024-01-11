@@ -60,4 +60,21 @@
   let rec id_0 n acc  = (if (n < 3) then (acc 1) else ((id_0 (n - 1)) (((id_1 acc) id_0) n)))
   let  id_3 x  = x
   let  fibo n  = ((id_0 n) id_3)
+  $ ./liftingTests.exe <<-EOF
+  > let a,b = 1,2
+  > let c = a + b
+  > let test a =
+  > let m,k,l = a in
+  > let n = m + 2 in
+  > let snd (s, t) = t in
+  > let thrd (f, g, h) = h in
+  > thrd (m,k,l)
+  > EOF
+  let  id_5  = (1, 2)
+  let  a  = id_5[0]
+  let  b  = id_5[1]
+  let  c  = (a + b)
+  let  id_0 id_1  = let t = id_1[1] in let s = id_1[0] in t
+  let  id_2 id_3  = let h = id_3[2] in let g = id_3[1] in let f = id_3[0] in h
+  let  test a  = let id_4 = a in let l = id_4[2] in let k = id_4[1] in let m = id_4[0] in let n = (m + 2) in (id_2 (m, k, l))
 

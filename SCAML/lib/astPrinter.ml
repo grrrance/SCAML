@@ -5,6 +5,14 @@
 open Ast
 open Format
 
+let pp_list ppf pp sep =
+  pp_print_list ~pp_sep:(fun ppf _ -> fprintf ppf sep) (fun ppf value -> pp ppf value) ppf
+;;
+
+let pp_tuple tuple_items pp fmt =
+  fprintf fmt "(%a)" (fun fmt -> pp_list fmt pp ", ") tuple_items
+;;
+
 let pp_const fmt = function
   | CInt x -> fprintf fmt "%d" x
   | CBool x -> fprintf fmt "%b" x
@@ -27,10 +35,11 @@ let pp_bin_op fmt = function
   | Mod -> fprintf fmt "%%"
 ;;
 
-let pp_pattern fmt = function
+let rec pp_pattern fmt = function
   | PVar x -> fprintf fmt "%s" x
   | PConst c -> pp_const fmt c
   | PWild -> fprintf fmt "_"
+  | PTuple pats -> pp_tuple pats pp_pattern fmt
 ;;
 
 let rec pp_patterns fmt = function
@@ -58,9 +67,10 @@ let rec pp_expr fmt = function
   | ELetIn (rec_flag, x, e1, e2) ->
     fprintf
       fmt
-      "let %a %s %a = %a in %a"
+      "let %a %a %a = %a in %a"
       pp_rec_flag
       rec_flag
+      pp_pattern
       x
       eletin_helper
       e1
@@ -69,6 +79,7 @@ let rec pp_expr fmt = function
       pp_expr
       e2
   | EApp (e1, e2) -> fprintf fmt "%a %a" pp_expr e1 pp_expr e2
+  | ETuple exprs -> pp_tuple exprs pp_expr fmt
 
 and efun_helper fmt = function
   | EFun (_, e) -> fprintf fmt "%a" efun_helper e
@@ -76,19 +87,29 @@ and efun_helper fmt = function
 
 and pp_binding fmt = function
   | ELet (rec_flag, x, e) ->
-    fprintf fmt "let %a %s %a = %a" pp_rec_flag rec_flag x eletin_helper e efun_helper e
+    fprintf
+      fmt
+      "let %a %a %a = %a"
+      pp_rec_flag
+      rec_flag
+      pp_pattern
+      x
+      eletin_helper
+      e
+      efun_helper
+      e
 ;;
 
 let%expect_test _ =
   printf "%a" pp_binding
   @@ ELet
        ( false
-       , "fac"
+       , PVar "fac"
        , EFun
            ( PVar "n"
            , ELetIn
                ( true
-               , "fack"
+               , PVar "fack"
                , EFun
                    ( PVar "n"
                    , EFun
