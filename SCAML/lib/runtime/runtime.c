@@ -152,3 +152,22 @@ int64_t addNewPaplyClosure(int64_t func, int64_t tcount)
     }
     return (int64_t) new;
 }
+
+int64_t print_int(int64_t x)
+{
+    printf("%ld\n", x);
+    return 0;
+}
+
+int64_t print_bool(int64_t x)
+{
+    if (x == 0)
+    {
+        printf("false\n");
+    }
+    else
+    {
+        printf("true\n");
+    }
+    return 0;
+}

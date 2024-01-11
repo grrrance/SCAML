@@ -7,6 +7,7 @@ open Llast
 open Ast
 open AnfPrinter
 open Counter
+open StdlibFunc
 
 (** Converts constant to immediate value *)
 let conv_const = function
@@ -88,6 +89,7 @@ let anf_program (binds : llbinding list) =
     | LLLet (_, varname, _, _) :: tl -> Base.Set.add acc varname |> get_initial_env tl
   in
   let env = get_initial_env binds (Base.Set.empty (module Base.String)) in
+  let env = List.fold_left (fun acc (id,_) -> Base.Set.add acc id) env stdlib in
   List.map (fun bind -> snd @@ IState.runState ~init:0 (anf_binding env bind)) binds
 ;;
 

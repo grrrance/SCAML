@@ -10,6 +10,7 @@
 open Base
 open Ast
 open Ty
+open StdlibFunc
 module Format = Stdlib.Format (* silencing a warning *)
 
 module R : sig
@@ -352,7 +353,10 @@ let infer_prog prog =
          helper env tl l1)
     | [] -> return l
   in
-  helper TypeEnv.empty prog []
+  let env_init = List.fold_left ~init:TypeEnv.empty ~f:(fun acc (id, t) ->
+    TypeEnv.extend acc (id, S (VarSet.empty, t))) stdlib
+  in
+  helper env_init prog []
 ;;
 
 let w e = Result.map (run (infer TypeEnv.empty e)) ~f:snd

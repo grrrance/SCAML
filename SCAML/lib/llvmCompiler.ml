@@ -155,6 +155,8 @@ let codegen_program prog =
         (function_type int_64 [| int_64; int_64 |])
         the_module
     ; declare_function "applyPaply" (function_type int_64 [| int_64; int_64 |]) the_module
+    ; declare_function "print_int" (function_type int_64 [| int_64 |]) the_module
+    ; declare_function "print_bool" (function_type int_64 [| int_64 |]) the_module
     ]
   in
   let* result =

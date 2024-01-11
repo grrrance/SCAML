@@ -15,7 +15,8 @@
   AstPrinter
   LlastPrinter
   LambdaLifting
-  LlvmCompiler)
+  LlvmCompiler
+  StdlibFunc)
  (libraries base angstrom llvm)
  (instrumentation
   (backend bisect_ppx))
