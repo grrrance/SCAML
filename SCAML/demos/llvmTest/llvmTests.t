@@ -58,3 +58,87 @@
   > let rec foo    a b c d e f g h i j k l m n  o p q  = a
   > let main = foo 1 2 3 4 5 6 7 8 9 0 1 2 3 4  5 6 7
   > EOF
+  $ ./llvmTests.exe <<- EOF | lli-16 -load ../../lib/runtime/runtime.so
+  > let rec foo    _ _ _ _ e f _  = e
+  > let k = foo 1 2 3 4 5 6 7
+  > let main = print_int k
+  > EOF
+  5
+  $ ./llvmTests.exe <<- EOF
+  > let rec foo    _ _ _ _ e f _  = e
+  > let k = foo 1 2 3 4 5 6 7
+  > let main = print_int k
+  > EOF
+  declare i64 @print_bool(i64)
+  
+  declare i64 @print_int(i64)
+  
+  declare i64 @applyPaply(i64, i64)
+  
+  declare i64 @addNewPaplyClosure(i64, i64)
+  
+  define i64 @foo(i64 %"0_unused", i64 %"0_unused1", i64 %"0_unused2", i64 %"0_unused3", i64 %e, i64 %f, i64 %"0_unused4") {
+  entry:
+    %"0_unused5" = alloca i64, align 8
+    store i64 %"0_unused", ptr %"0_unused5", align 4
+    %"0_unused6" = alloca i64, align 8
+    store i64 %"0_unused1", ptr %"0_unused6", align 4
+    %"0_unused7" = alloca i64, align 8
+    store i64 %"0_unused2", ptr %"0_unused7", align 4
+    %"0_unused8" = alloca i64, align 8
+    store i64 %"0_unused3", ptr %"0_unused8", align 4
+    %e9 = alloca i64, align 8
+    store i64 %e, ptr %e9, align 4
+    %f10 = alloca i64, align 8
+    store i64 %f, ptr %f10, align 4
+    %"0_unused11" = alloca i64, align 8
+    store i64 %"0_unused4", ptr %"0_unused11", align 4
+    %e12 = load i64, ptr %e9, align 4
+    ret i64 %e12
+  }
+  
+  define i64 @k() {
+  entry:
+    %paplyClosure = call i64 @addNewPaplyClosure(i64 ptrtoint (ptr @foo to i64), i64 7)
+    %paplyApplication = call i64 @applyPaply(i64 %paplyClosure, i64 1)
+    %app_0 = alloca i64, align 8
+    store i64 %paplyApplication, ptr %app_0, align 4
+    %app_01 = load i64, ptr %app_0, align 4
+    %paplyApplication2 = call i64 @applyPaply(i64 %app_01, i64 2)
+    %app_1 = alloca i64, align 8
+    store i64 %paplyApplication2, ptr %app_1, align 4
+    %app_13 = load i64, ptr %app_1, align 4
+    %paplyApplication4 = call i64 @applyPaply(i64 %app_13, i64 3)
+    %app_2 = alloca i64, align 8
+    store i64 %paplyApplication4, ptr %app_2, align 4
+    %app_25 = load i64, ptr %app_2, align 4
+    %paplyApplication6 = call i64 @applyPaply(i64 %app_25, i64 4)
+    %app_3 = alloca i64, align 8
+    store i64 %paplyApplication6, ptr %app_3, align 4
+    %app_37 = load i64, ptr %app_3, align 4
+    %paplyApplication8 = call i64 @applyPaply(i64 %app_37, i64 5)
+    %app_4 = alloca i64, align 8
+    store i64 %paplyApplication8, ptr %app_4, align 4
+    %app_49 = load i64, ptr %app_4, align 4
+    %paplyApplication10 = call i64 @applyPaply(i64 %app_49, i64 6)
+    %app_5 = alloca i64, align 8
+    store i64 %paplyApplication10, ptr %app_5, align 4
+    %app_511 = load i64, ptr %app_5, align 4
+    %paplyApplication12 = call i64 @applyPaply(i64 %app_511, i64 7)
+    %app_6 = alloca i64, align 8
+    store i64 %paplyApplication12, ptr %app_6, align 4
+    %app_613 = load i64, ptr %app_6, align 4
+    ret i64 %app_613
+  }
+  
+  define i64 @main() {
+  entry:
+    %paplyClosure = call i64 @addNewPaplyClosure(i64 ptrtoint (ptr @print_int to i64), i64 1)
+    %paplyClosure1 = call i64 @addNewPaplyClosure(i64 ptrtoint (ptr @k to i64), i64 0)
+    %paplyApplication = call i64 @applyPaply(i64 %paplyClosure, i64 %paplyClosure1)
+    %app_0 = alloca i64, align 8
+    store i64 %paplyApplication, ptr %app_0, align 4
+    %app_02 = load i64, ptr %app_0, align 4
+    ret i64 0
+  }
+  
