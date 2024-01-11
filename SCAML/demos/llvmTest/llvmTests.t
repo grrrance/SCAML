@@ -73,9 +73,9 @@
   
   declare i64 @print_int(i64)
   
-  declare i64 @applyPaply(i64, i64)
+  declare i64 @applyPAppli(i64, i64)
   
-  declare i64 @addNewPaplyClosure(i64, i64)
+  declare i64 @addNewPAppliClosure(i64, i64)
   
   define i64 @foo(i64 %"0_unused", i64 %"0_unused1", i64 %"0_unused2", i64 %"0_unused3", i64 %e, i64 %f, i64 %"0_unused4") {
   entry:
@@ -99,45 +99,45 @@
   
   define i64 @k() {
   entry:
-    %paplyClosure = call i64 @addNewPaplyClosure(i64 ptrtoint (ptr @foo to i64), i64 7)
-    %paplyApplication = call i64 @applyPaply(i64 %paplyClosure, i64 1)
+    %PAppliClosure = call i64 @addNewPAppliClosure(i64 ptrtoint (ptr @foo to i64), i64 7)
+    %PAppliApplication = call i64 @applyPAppli(i64 %PAppliClosure, i64 1)
     %app_0 = alloca i64, align 8
-    store i64 %paplyApplication, ptr %app_0, align 4
+    store i64 %PAppliApplication, ptr %app_0, align 4
     %app_01 = load i64, ptr %app_0, align 4
-    %paplyApplication2 = call i64 @applyPaply(i64 %app_01, i64 2)
+    %PAppliApplication2 = call i64 @applyPAppli(i64 %app_01, i64 2)
     %app_1 = alloca i64, align 8
-    store i64 %paplyApplication2, ptr %app_1, align 4
+    store i64 %PAppliApplication2, ptr %app_1, align 4
     %app_13 = load i64, ptr %app_1, align 4
-    %paplyApplication4 = call i64 @applyPaply(i64 %app_13, i64 3)
+    %PAppliApplication4 = call i64 @applyPAppli(i64 %app_13, i64 3)
     %app_2 = alloca i64, align 8
-    store i64 %paplyApplication4, ptr %app_2, align 4
+    store i64 %PAppliApplication4, ptr %app_2, align 4
     %app_25 = load i64, ptr %app_2, align 4
-    %paplyApplication6 = call i64 @applyPaply(i64 %app_25, i64 4)
+    %PAppliApplication6 = call i64 @applyPAppli(i64 %app_25, i64 4)
     %app_3 = alloca i64, align 8
-    store i64 %paplyApplication6, ptr %app_3, align 4
+    store i64 %PAppliApplication6, ptr %app_3, align 4
     %app_37 = load i64, ptr %app_3, align 4
-    %paplyApplication8 = call i64 @applyPaply(i64 %app_37, i64 5)
+    %PAppliApplication8 = call i64 @applyPAppli(i64 %app_37, i64 5)
     %app_4 = alloca i64, align 8
-    store i64 %paplyApplication8, ptr %app_4, align 4
+    store i64 %PAppliApplication8, ptr %app_4, align 4
     %app_49 = load i64, ptr %app_4, align 4
-    %paplyApplication10 = call i64 @applyPaply(i64 %app_49, i64 6)
+    %PAppliApplication10 = call i64 @applyPAppli(i64 %app_49, i64 6)
     %app_5 = alloca i64, align 8
-    store i64 %paplyApplication10, ptr %app_5, align 4
+    store i64 %PAppliApplication10, ptr %app_5, align 4
     %app_511 = load i64, ptr %app_5, align 4
-    %paplyApplication12 = call i64 @applyPaply(i64 %app_511, i64 7)
+    %PAppliApplication12 = call i64 @applyPAppli(i64 %app_511, i64 7)
     %app_6 = alloca i64, align 8
-    store i64 %paplyApplication12, ptr %app_6, align 4
+    store i64 %PAppliApplication12, ptr %app_6, align 4
     %app_613 = load i64, ptr %app_6, align 4
     ret i64 %app_613
   }
   
   define i64 @main() {
   entry:
-    %paplyClosure = call i64 @addNewPaplyClosure(i64 ptrtoint (ptr @print_int to i64), i64 1)
-    %paplyClosure1 = call i64 @addNewPaplyClosure(i64 ptrtoint (ptr @k to i64), i64 0)
-    %paplyApplication = call i64 @applyPaply(i64 %paplyClosure, i64 %paplyClosure1)
+    %PAppliClosure = call i64 @addNewPAppliClosure(i64 ptrtoint (ptr @print_int to i64), i64 1)
+    %PAppliClosure1 = call i64 @addNewPAppliClosure(i64 ptrtoint (ptr @k to i64), i64 0)
+    %PAppliApplication = call i64 @applyPAppli(i64 %PAppliClosure, i64 %PAppliClosure1)
     %app_0 = alloca i64, align 8
-    store i64 %paplyApplication, ptr %app_0, align 4
+    store i64 %PAppliApplication, ptr %app_0, align 4
     %app_02 = load i64, ptr %app_0, align 4
     ret i64 0
   }

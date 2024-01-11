@@ -29,11 +29,11 @@ let codegen_imm = function
           ok
             (build_call
                (function_type int_64 [| int_64; int_64 |])
-               (Option.get (lookup_function "addNewPaplyClosure" the_module))
+               (Option.get (lookup_function "addNewPAppliClosure" the_module))
                [| build_pointercast v int_64 "cast_pointer_to_int" builder
                 ; params v |> Base.Array.length |> const_int int_64
                |]
-               "paplyClosure"
+               "PAppliClosure"
                builder)
         | None -> error "Unknown variable"))
 ;;
@@ -68,9 +68,9 @@ let rec codegen_cexpr = function
     ok
       (build_call
          (function_type int_64 [| int_64; int_64 |])
-         (Option.get (lookup_function "applyPaply" the_module))
+         (Option.get (lookup_function "applyPAppli" the_module))
          [| calee; arg |]
-         "paplyApplication"
+         "PAppliApplication"
          builder)
   | CIf (cond, then_, else_) ->
     let* cond = codegen_imm cond in
@@ -156,10 +156,10 @@ let codegen_bexpr = function
 let codegen_program prog =
   let runtime =
     [ declare_function
-        "addNewPaplyClosure"
+        "addNewPAppliClosure"
         (function_type int_64 [| int_64; int_64 |])
         the_module
-    ; declare_function "applyPaply" (function_type int_64 [| int_64; int_64 |]) the_module
+    ; declare_function "applyPAppli" (function_type int_64 [| int_64; int_64 |]) the_module
     ; declare_function "print_int" (function_type int_64 [| int_64 |]) the_module
     ; declare_function "print_bool" (function_type int_64 [| int_64 |]) the_module
     ]
