@@ -32,3 +32,7 @@
   acc2 : (int -> (int -> 'k) -> 'n) -> int -> (int -> 'k) -> int -> 'n
   fibo_cps : int -> (int -> 'y) -> 'y
   fibo : int -> int
+  $ ./inferencerTests.exe <<-EOF
+  > let pr = print_int 1
+  > EOF
+  pr : ()
