@@ -14,6 +14,8 @@ type llexpr =
   | LLIf of llexpr * llexpr * llexpr (** conditionals *)
   | LLApp of llexpr * llexpr (** applying a function to an argument *)
   | LLLetIn of id * llexpr * llexpr (** binding to a variable *)
+  | LLTuple of llexpr list (** tuple *)
+  | LLGetFromTuple of id * int (** get element from tuple *)
 [@@deriving show { with_path = false }]
 
 (** binding to a function with arguments *)

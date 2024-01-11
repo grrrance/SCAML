@@ -15,6 +15,8 @@ let rec pp_llexpr fmt = function
     fprintf fmt "(if %a then %a else %a)" pp_llexpr l1 pp_llexpr l2 pp_llexpr l3
   | LLApp (l1, l2) -> fprintf fmt "(%a %a)" pp_llexpr l1 pp_llexpr l2
   | LLLetIn (id, l1, l2) -> fprintf fmt "let %s = %a in %a" id pp_llexpr l1 pp_llexpr l2
+  | LLTuple ls -> fprintf fmt "(%a)" (fun fmt -> pp_list fmt pp_llexpr ", ") ls
+  | LLGetFromTuple (l1, l2) -> fprintf fmt "%s[%d]" l1 l2
 ;;
 
 let pp_llbinding fmt = function
