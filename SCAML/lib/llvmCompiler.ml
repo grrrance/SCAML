@@ -105,7 +105,7 @@ and codegen_aexpr = function
   | ALetIn (id, cexpr, aexpr) ->
     let* body = codegen_cexpr cexpr in
     let alloca = build_alloca int_64 id builder in
-    let (_: Llvm.llvalue) = build_store body alloca builder in
+    let (_ : Llvm.llvalue) = build_store body alloca builder in
     Hashtbl.add named_values id alloca;
     codegen_aexpr aexpr
 ;;
@@ -124,7 +124,8 @@ let codegen_bexpr = function
       let rec check acc = function
         | [] -> ok (List.rev acc)
         | PImmExpr (ImmId id) :: xs -> check (id :: acc) xs
-        | PImmWild :: xs -> check ("0_unused_underscore_variable" :: acc) xs
+        (*Language variables cannot start with numbers, but LLVM virtual registers can, so these are names for obviously unused variables that will not cause collisions with other names *)
+        | PImmWild :: xs -> check ("0_unused" :: acc) xs
         | _ -> error "Invalid argument"
       in
       check [] args
@@ -144,7 +145,11 @@ let codegen_bexpr = function
         Hashtbl.add named_values name alloca)
       (params func);
     let* ret_val = codegen_aexpr body in
-    let _ = build_ret ret_val builder in
+    let _ =
+      if id = "main"
+      then build_ret (const_int int_64 0) builder
+      else build_ret ret_val builder
+    in
     ok func
 ;;
 
