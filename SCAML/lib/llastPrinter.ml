@@ -19,16 +19,14 @@ let rec pp_llexpr fmt = function
   | LLGetFromTuple (l1, l2) -> fprintf fmt "%s[%d]" l1 l2
 ;;
 
+let pp_ids fmt = function
+  | [] -> ()
+  | [ id ] -> fprintf fmt "%s" id
+  | ids ->
+    fprintf fmt "%a" (fun fmt -> pp_list fmt (fun fmt id -> fprintf fmt "%s" id) " ") ids
+;;
+
 let pp_llbinding fmt = function
-  | LLLet (rec_flag, id, patterns, l) ->
-    fprintf
-      fmt
-      "let %a %s %a = %a"
-      pp_rec_flag
-      rec_flag
-      id
-      pp_patterns
-      patterns
-      pp_llexpr
-      l
+  | LLLet (rec_flag, id, ids, l) ->
+    fprintf fmt "let %a %s %a  = %a" pp_rec_flag rec_flag id pp_ids ids pp_llexpr l
 ;;

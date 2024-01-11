@@ -53,11 +53,11 @@ let pattern_m_helper inner pat_l global =
             | PTuple xs ->(
               let* new_id = gen_fresh_id global in
               let* acc, _ = tuple_helper acc xs new_id in
-              return (acc, (PVar new_id) :: args)
+              return (acc, new_id :: args)
             )
-            | PVar id -> return (acc, (PVar id) :: args)
-            | PConst c -> return (acc, (PConst c) :: args)
-            | PWild -> return (acc, (PWild) :: args))
+            | PVar id -> return (acc, id :: args)
+            | PConst _ -> return (acc, args)
+            | PWild -> return (acc,  args))
           ~init:(return (inner, []))
           pat_l
 
@@ -131,7 +131,7 @@ let prog_lift prog =
       let* l2, ll_list = lift_expr env ll_list global e2 in
       let* l2', args = pattern_m_helper l2 [pat] global in
       (match args with
-      | [PVar id] -> return (LLLetIn (id, l1, l2'), ll_list)
+      | [id] -> return (LLLetIn (id, l1, l2'), ll_list)
       | _ -> return (l2, ll_list))
     | EFun (_, _) as e ->
       let args, exp = get_args [] e in

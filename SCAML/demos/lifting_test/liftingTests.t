@@ -33,7 +33,7 @@
   > let main = factorial 5
   > EOF
   let rec factorial n  = (if (n <= 1) then 1 else (n * (factorial (n - 1))))
-  let  main  = (factorial 5)
+  let  main   = (factorial 5)
   $ ./liftingTests.exe <<-EOF
   > let plus a =
   > let sum b = a + b in
@@ -70,10 +70,10 @@
   > let thrd (f, g, h) = h in
   > thrd (m,k,l)
   > EOF
-  let  id_5  = (1, 2)
-  let  a  = id_5[0]
-  let  b  = id_5[1]
-  let  c  = (a + b)
+  let  id_5   = (1, 2)
+  let  a   = id_5[0]
+  let  b   = id_5[1]
+  let  c   = (a + b)
   let  id_0 id_1  = let t = id_1[1] in let s = id_1[0] in t
   let  id_2 id_3  = let h = id_3[2] in let g = id_3[1] in let f = id_3[0] in h
   let  test a  = let id_4 = a in let l = id_4[2] in let k = id_4[1] in let m = id_4[0] in let n = (m + 2) in (id_2 (m, k, l))

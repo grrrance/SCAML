@@ -19,7 +19,7 @@ type llexpr =
 [@@deriving show { with_path = false }]
 
 (** binding to a function with arguments *)
-type llbinding = LLLet of bool * id * pattern list * llexpr
+type llbinding = LLLet of bool * id * id list * llexpr
 [@@deriving show { with_path = false }]
 
 (** type containing functions at the top level *)
