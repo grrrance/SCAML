@@ -6,13 +6,19 @@ open RestrictedAst
 open Format
 open Ast
 
-let pp_immexpr ppf = function
+let pp_list ppf pp sep =
+  pp_print_list ~pp_sep:(fun ppf _ -> fprintf ppf sep) (fun ppf value -> pp ppf value) ppf
+;;
+
+let rec pp_immexpr ppf = function
   | ImmNum n -> fprintf ppf "%n" n
   | ImmId id -> fprintf ppf "%s" id
   | ImmBool b ->
     let bs = if b then "true" else "false" in
     fprintf ppf "%s" bs
   | ImmUnit -> fprintf ppf "()"
+  | ImmTuple ts -> fprintf ppf "(%a)" (fun ppf -> pp_list ppf pp_immexpr ", ") ts
+  | ImmTuplePosition (id, pos) -> fprintf ppf "%s[%d]" id pos
 ;;
 
 let pp_binop ppf = function
@@ -31,11 +37,6 @@ let pp_binop ppf = function
   | Or -> fprintf ppf "||"
 ;;
 
-let pp_pexpr ppf = function
-  | PImmExpr i -> fprintf ppf "%a" pp_immexpr i
-  | PImmWild -> fprintf ppf "_"
-;;
-
 let rec pp_cexpr ppf = function
   | CBinOp (op, l, r) -> fprintf ppf "%a %a %a" pp_immexpr l pp_binop op pp_immexpr r
   | CImmExpr i -> fprintf ppf "%a" pp_immexpr i
@@ -49,10 +50,6 @@ and pp_aexpr ppf = function
   | ACExpr ce -> fprintf ppf "%a" pp_cexpr ce
 ;;
 
-let pp_list ppf pp sep =
-  pp_print_list ~pp_sep:(fun ppf _ -> fprintf ppf sep) (fun ppf value -> pp ppf value) ppf
-;;
-
 let pp_bexpr ppf = function
   | ALet (r, name, args, ae) ->
     let rs = if r then "rec " else "" in
@@ -61,7 +58,7 @@ let pp_bexpr ppf = function
       "let %s%s %a = %a"
       rs
       name
-      (fun ppf -> pp_list ppf pp_pexpr " ")
+      (fun ppf -> pp_list ppf pp_print_string " ")
       args
       pp_aexpr
       ae

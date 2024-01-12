@@ -15,9 +15,6 @@ val pp_binop : formatter -> bin_op -> unit
 (* A function to print an expression of composite type *)
 val pp_cexpr : formatter -> cexpr -> unit
 
-(* A function to print an expression of pattern type *)
-val pp_pexpr : formatter -> pexpr -> unit
-
 (* A function to print an expression of abstract type *)
 val pp_aexpr : formatter -> aexpr -> unit
 

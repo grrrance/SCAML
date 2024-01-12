@@ -15,13 +15,6 @@ let conv_const = function
   | CUnit -> ImmUnit
 ;;
 
-(** Converts pattern to immediate pattern *)
-let conv_pattern = function
-  | PWild -> PImmWild
-  | PVar id -> PImmExpr (ImmId id)
-  | PConst c -> PImmExpr (conv_const c)
-;;
-
 open IState
 open IState.Syntax
 
@@ -40,8 +33,15 @@ let rec anf_expr
   : aexpr t
   =
   match e with
+  | LLGetFromTuple (id, pos) -> expr_with_imm_hole @@ ImmTuplePosition (id, pos)
   | LLConst c -> expr_with_imm_hole @@ conv_const c
   | LLVar id -> expr_with_imm_hole @@ ImmId id
+  | LLTuple ts ->
+    let rec helper acc = function
+      | [] -> expr_with_imm_hole @@ ImmTuple (List.rev acc)
+      | h :: tl -> anf_expr env h (fun timm -> helper (timm :: acc) tl)
+    in
+    helper [] ts
   | LLBinOp (op, left, right) ->
     anf_expr env left (fun limm ->
       anf_expr env right (fun rimm ->
@@ -50,12 +50,11 @@ let rec anf_expr
         >>= fun ae -> return (ALetIn (var, CBinOp (op, limm, rimm), ae))))
   | LLIf (cond, t, e) ->
     anf_expr env cond (fun cimm ->
-      let* var = gen_var "if_" env in
-      expr_with_imm_hole @@ ImmId var
-      >>= fun ae ->
       let* taexpr = anf_expr env t (fun timm -> return @@ ACExpr (CImmExpr timm)) in
       let* eaexpr = anf_expr env e (fun eimm -> return @@ ACExpr (CImmExpr eimm)) in
-      return (ALetIn (var, CIf (cimm, taexpr, eaexpr), ae)))
+      let* var = gen_var "if_" env in
+      expr_with_imm_hole @@ ImmId var
+      >>= fun ae -> return (ALetIn (var, CIf (cimm, taexpr, eaexpr), ae)))
   | LLApp (f, arg) ->
     anf_expr env f (fun fimm ->
       anf_expr env arg (fun argimm ->
@@ -74,11 +73,10 @@ let anf_binding env = function
     let rec get_initial_env args acc =
       match args with
       | [] -> acc
-      | PVar id :: tl -> Base.Set.add acc id |> get_initial_env tl
-      | _ :: tl -> get_initial_env tl acc
+      | id :: tl -> Base.Set.add acc id |> get_initial_env tl
     in
     anf_expr (get_initial_env args env) e (fun ie -> return (ACExpr (CImmExpr ie)))
-    >>= fun anf_e -> return (ALet (r, varname, List.map conv_pattern args, anf_e))
+    >>= fun anf_e -> return (ALet (r, varname, args, anf_e))
 ;;
 
 let anf_program (binds : llbinding list) =
@@ -157,21 +155,20 @@ let%expect_test _ =
   @@ [ LLLet
          ( false
          , "fack1"
-         , [ PVar "k"; PVar "n"; PVar "m" ]
+         , [ "k"; "n"; "m" ]
          , LLApp (LLVar "k", LLBinOp (Mul, LLVar "n", LLVar "m")) )
      ; LLLet
          ( true
          , "fack"
-         , [ PVar "n"; PVar "k" ]
+         , [ "n"; "k" ]
          , LLIf
              ( LLBinOp (Leq, LLVar "n", LLConst (CInt 1))
              , LLApp (LLVar "k", LLConst (CInt 1))
              , LLApp
                  ( LLApp (LLVar "fack", LLBinOp (Sub, LLVar "n", LLConst (CInt 1)))
                  , LLApp (LLApp (LLVar "fack1", LLVar "k"), LLVar "n") ) ) )
-     ; LLLet (false, "id", [ PVar "x" ], LLVar "x")
-     ; LLLet
-         (false, "fac", [ PVar "n" ], LLApp (LLApp (LLVar "fack", LLVar "n"), LLVar "id"))
+     ; LLLet (false, "id", [ "x" ], LLVar "x")
+     ; LLLet (false, "fac", [ "n" ], LLApp (LLApp (LLVar "fack", LLVar "n"), LLVar "id"))
      ];
   [%expect
     {|
@@ -179,14 +176,14 @@ let%expect_test _ =
      let app_1 = k b_op_0 in
      app_1;;
     let rec fack n k = let b_op_0 = n <= 1 in
-     let if_1 = if b_op_0 then let app_2 = k 1 in
-     app_2 else let b_op_3 = n - 1 in
-     let app_4 = fack b_op_3 in
-     let app_5 = fack1 k in
-     let app_6 = app_5 n in
-     let app_7 = app_4 app_6 in
-     app_7 in
-     if_1;;
+     let if_7 = if b_op_0 then let app_1 = k 1 in
+     app_1 else let b_op_2 = n - 1 in
+     let app_3 = fack b_op_2 in
+     let app_4 = fack1 k in
+     let app_5 = app_4 n in
+     let app_6 = app_3 app_5 in
+     app_6 in
+     if_7;;
     let id x = x;;
     let fac n = let app_0 = fack n in
      let app_1 = app_0 id in
@@ -202,23 +199,23 @@ let%expect_test _ =
      let fibo n = fibo_cps n id
   *)
   print_anf_prog
-  @@ [ LLLet (false, "id", [ PVar "x" ], LLVar "x")
+  @@ [ LLLet (false, "id", [ "x" ], LLVar "x")
      ; LLLet
          ( false
          , "acc1"
-         , [ PVar "acc"; PVar "x"; PVar "y" ]
+         , [ "acc"; "x"; "y" ]
          , LLApp (LLVar "acc", LLBinOp (Add, LLVar "x", LLVar "y")) )
      ; LLLet
          ( false
          , "acc2"
-         , [ PVar "fib_func"; PVar "n"; PVar "acc"; PVar "x" ]
+         , [ "fib_func"; "n"; "acc"; "x" ]
          , LLApp
              ( LLApp (LLVar "fib_func", LLBinOp (Sub, LLVar "n", LLConst (CInt 2)))
              , LLApp (LLApp (LLVar "acc1", LLVar "acc"), LLVar "x") ) )
      ; LLLet
          ( true
          , "fibo_cps"
-         , [ PVar "n"; PVar "acc" ]
+         , [ "n"; "acc" ]
          , LLIf
              ( LLBinOp (Less, LLVar "n", LLConst (CInt 3))
              , LLApp (LLVar "acc", LLConst (CInt 1))
@@ -228,10 +225,7 @@ let%expect_test _ =
                      ( LLApp (LLApp (LLVar "acc2", LLVar "fibo_cps"), LLVar "n")
                      , LLVar "acc" ) ) ) )
      ; LLLet
-         ( false
-         , "fibo"
-         , [ PVar "n" ]
-         , LLApp (LLApp (LLVar "fibo_cps", LLVar "n"), LLVar "id") )
+         (false, "fibo", [ "n" ], LLApp (LLApp (LLVar "fibo_cps", LLVar "n"), LLVar "id"))
      ];
   [%expect
     {|
@@ -246,15 +240,15 @@ let%expect_test _ =
      let app_4 = app_1 app_3 in
      app_4;;
     let rec fibo_cps n acc = let b_op_0 = n < 3 in
-     let if_1 = if b_op_0 then let app_2 = acc 1 in
-     app_2 else let b_op_3 = n - 1 in
-     let app_4 = fibo_cps b_op_3 in
-     let app_5 = acc2 fibo_cps in
-     let app_6 = app_5 n in
-     let app_7 = app_6 acc in
-     let app_8 = app_4 app_7 in
-     app_8 in
-     if_1;;
+     let if_8 = if b_op_0 then let app_1 = acc 1 in
+     app_1 else let b_op_2 = n - 1 in
+     let app_3 = fibo_cps b_op_2 in
+     let app_4 = acc2 fibo_cps in
+     let app_5 = app_4 n in
+     let app_6 = app_5 acc in
+     let app_7 = app_3 app_6 in
+     app_7 in
+     if_8;;
     let fibo n = let app_0 = fibo_cps n in
      let app_1 = app_0 id in
      app_1 |}]

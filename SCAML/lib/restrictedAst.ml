@@ -9,10 +9,8 @@ type immexpr =
   | ImmId of id (** x *)
   | ImmBool of bool (** true *)
   | ImmUnit (** () *)
-
-type pexpr =
-  | PImmExpr of immexpr (** 1 *)
-  | PImmWild (** _ *)
+  | ImmTuple of immexpr list (** (1, 2, 3) *)
+  | ImmTuplePosition of id * int (** element position in tuple *)
 
 type cexpr =
   | CBinOp of bin_op * immexpr * immexpr (** 1 + 1 *)
@@ -24,7 +22,7 @@ and aexpr =
   | ALetIn of id * cexpr * aexpr (** let x = 5 in x *)
   | ACExpr of cexpr (** 1 + 1 *)
 
-type bexpr = ALet of bool * id * pexpr list * aexpr (** let [rec] f x = ae *)
+type bexpr = ALet of bool * id * id list * aexpr (** let [rec] f x = ae *)
 
 (** be1 ;; be2 ;; ... ;; ben;; *)
 type prexpr = bexpr list

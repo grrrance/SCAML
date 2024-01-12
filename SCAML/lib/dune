@@ -6,16 +6,15 @@
   Parser
   Ty
   Inferencer
-  ; Llast
-  ; RestrictedAst
-  ; Anf
-  ; AnfPrinter
-  ; Counter
-  ; Closure
+  Llast
+  RestrictedAst
+  Anf
+  AnfPrinter
+  Counter
+  Closure
   AstPrinter
-  ; LlastPrinter
-  ; Lambda_lifting
-  )
+  LlastPrinter
+  Lambda_lifting)
  (libraries base angstrom)
  (instrumentation
   (backend bisect_ppx))

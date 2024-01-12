@@ -9,14 +9,14 @@
    let app_1 = k b_op_0 in
    app_1
   let rec id_0 n k = let b_op_0 = n <= 1 in
-   let if_1 = if b_op_0 then let app_2 = k 1 in
-   app_2 else let b_op_3 = n - 1 in
-   let app_4 = id_0 b_op_3 in
-   let app_5 = id_1 k in
-   let app_6 = app_5 n in
-   let app_7 = app_4 app_6 in
-   app_7 in
-   if_1
+   let if_7 = if b_op_0 then let app_1 = k 1 in
+   app_1 else let b_op_2 = n - 1 in
+   let app_3 = id_0 b_op_2 in
+   let app_4 = id_1 k in
+   let app_5 = app_4 n in
+   let app_6 = app_3 app_5 in
+   app_6 in
+   if_7
   let id_2 x = x
   let fac n = let app_0 = id_0 n in
    let app_1 = app_0 id_2 in
@@ -38,15 +38,15 @@
    let app_4 = app_1 app_3 in
    app_4
   let rec id_0 n acc = let b_op_0 = n < 3 in
-   let if_1 = if b_op_0 then let app_2 = acc 1 in
-   app_2 else let b_op_3 = n - 1 in
-   let app_4 = id_0 b_op_3 in
-   let app_5 = id_1 acc in
-   let app_6 = app_5 id_0 in
-   let app_7 = app_6 n in
-   let app_8 = app_4 app_7 in
-   app_8 in
-   if_1
+   let if_8 = if b_op_0 then let app_1 = acc 1 in
+   app_1 else let b_op_2 = n - 1 in
+   let app_3 = id_0 b_op_2 in
+   let app_4 = id_1 acc in
+   let app_5 = app_4 id_0 in
+   let app_6 = app_5 n in
+   let app_7 = app_3 app_6 in
+   app_7 in
+   if_8
   let id_3 x = x
   let fibo n = let app_0 = id_0 n in
    let app_1 = app_0 id_3 in
@@ -97,11 +97,11 @@
   > let main = factorial 5
   > EOF
   let rec factorial n = let b_op_0 = n <= 1 in
-   let if_1 = if b_op_0 then 1 else let b_op_2 = n - 1 in
-   let app_3 = factorial b_op_2 in
-   let b_op_4 = n * app_3 in
-   b_op_4 in
-   if_1
+   let if_4 = if b_op_0 then 1 else let b_op_1 = n - 1 in
+   let app_2 = factorial b_op_1 in
+   let b_op_3 = n * app_2 in
+   b_op_3 in
+   if_4
   let main  = let app_0 = factorial 5 in
    app_0
   $ ./anfTests.exe <<-EOF
@@ -118,3 +118,63 @@
    let b_op_2 = 5 + m in
    let app_3 = app_1 b_op_2 in
    app_3
+  $ ./anfTests.exe <<-EOF
+  > let a,b = 1,2
+  > let c = a + b
+  > let test a =
+  > let m,k,l = a in
+  > let n = m + 2 in
+  > let snd (s, t) = t in
+  > let thrd (f, g, h) = h in
+  > thrd (m,k,l)
+  > EOF
+  let id_5  = (1, 2)
+  let a  = id_5[0]
+  let b  = id_5[1]
+  let c  = let b_op_0 = a + b in
+   b_op_0
+  let id_0 id_1 = let t = id_1[1] in
+   let s = id_1[0] in
+   t
+  let id_2 id_3 = let h = id_3[2] in
+   let g = id_3[1] in
+   let f = id_3[0] in
+   h
+  let test a = let id_4 = a in
+   let l = id_4[2] in
+   let k = id_4[1] in
+   let m = id_4[0] in
+   let b_op_0 = m + 2 in
+   let n = b_op_0 in
+   let app_1 = id_2 (m, k, l) in
+   app_1
+  $ ./anfTests.exe <<-EOF
+  > let main =
+  > let a,b,c,d,e,f = (1,2,3,4,5,6) in
+  > let foo (x,y,z) = x * y + z in
+  > foo (a,c,f)
+  > EOF
+  let id_0 id_1 = let z = id_1[2] in
+   let y = id_1[1] in
+   let x = id_1[0] in
+   let b_op_0 = x * y in
+   let b_op_1 = b_op_0 + z in
+   b_op_1
+  let main  = let id_2 = (1, 2, 3, 4, 5, 6) in
+   let f = id_2[5] in
+   let e = id_2[4] in
+   let d = id_2[3] in
+   let c = id_2[2] in
+   let b = id_2[1] in
+   let a = id_2[0] in
+   let app_0 = id_0 (a, c, f) in
+   app_0
+  $ ./anfTests.exe <<-EOF
+  > let x,y = (1 + 2 + 3 * 4, 100)
+  > EOF
+  let id_0  = let b_op_0 = 1 + 2 in
+   let b_op_1 = 3 * 4 in
+   let b_op_2 = b_op_0 + b_op_1 in
+   (b_op_2, 100)
+  let x  = id_0[0]
+  let y  = id_0[1]

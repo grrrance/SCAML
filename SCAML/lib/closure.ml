@@ -5,14 +5,16 @@
 open Ast
 open Base
 
- let rec pat_helper set = function
-    | PTuple xs -> List.fold xs ~init:set ~f:pat_helper
-    | PVar x -> Set.add set x
-    | _ -> set
+let rec pat_helper set = function
+  | PTuple xs -> List.fold xs ~init:set ~f:pat_helper
+  | PVar x -> Set.add set x
+  | _ -> set
 ;;
+
 let free_vars expr =
   let rec efun_helper set = function
-    | EFun (pat, e) -> efun_helper (Set.union set (pat_helper (Set.empty (module String)) pat)) e
+    | EFun (pat, e) ->
+      efun_helper (Set.union set (pat_helper (Set.empty (module String)) pat)) e
     | _ -> set
   in
   let rec helper = function
@@ -32,7 +34,11 @@ let free_vars expr =
       let free2 = Set.diff (helper e2) e1_pat in
       let free2' = Set.diff free2 p_set in
       Set.union free1' free2'
-    | ETuple xs -> List.fold xs ~init:(Set.empty (module String)) ~f:(fun acc x -> Set.union acc (helper x))
+    | ETuple xs ->
+      List.fold
+        xs
+        ~init:(Set.empty (module String))
+        ~f:(fun acc x -> Set.union acc (helper x))
   in
   helper expr
 ;;
@@ -64,7 +70,7 @@ let closure_conversion global_env decl =
       let s' = Set.diff s global_env in
       let e' = efun_helper local_env global_env orig in
       (match x with
-       | PVar _ | PWild | PTuple _->
+       | PVar _ | PWild | PTuple _ ->
          let fun_fold =
            constr_efun (List.map (Set.to_list s') ~f:(fun x -> constr_pvar x)) e'
          in
@@ -85,7 +91,7 @@ let closure_conversion global_env decl =
       let e1' = expr_closure local_env global_env e1 in
       let e2' = expr_closure local_env global_env e2 in
       constr_eletin b x e1' e2'
-    | ETuple xs -> 
+    | ETuple xs ->
       let xs' = List.map xs ~f:(expr_closure local_env global_env) in
       constr_etuple xs'
   and efun_helper local_env global_env = function
@@ -190,5 +196,3 @@ let%expect_test _ =
          ))
          |}]
 ;;
-
-
