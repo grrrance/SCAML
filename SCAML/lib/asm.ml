@@ -44,8 +44,7 @@ let buid_store asm_val =
 
 let build_call name args =
   let args =
-    Base.List.map args ~f:(fun arg ->
-      match arg with
+    Base.List.map args ~f:(function
       | Mem value -> value
       | Reg value -> value
       | Imm value -> value)
@@ -210,10 +209,10 @@ and codegen_aexpr env = function
   | ACExpr cexpr -> codegen_cexpr env cexpr
   | ALetIn (id, cexpr, aexpr) ->
     let* body = codegen_cexpr env cexpr in
-    let mem =
+    let* mem =
       match body with
-      | Mem value -> value
-      | _ -> failwith "Operation result should be in memory"
+      | Mem value -> ok value
+      | _ -> error "Operation result should be in memory"
     in
     let new_env = Base.Map.Poly.set env ~key:id ~data:mem in
     codegen_aexpr new_env aexpr
