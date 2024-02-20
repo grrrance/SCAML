@@ -3,3 +3,9 @@
  (targets runtime.so)
  (action
   (run gcc -fPIC -shared %{deps} -o %{targets})))
+ 
+ (rule
+ (deps runtime.c)
+ (targets runtime.o)
+ (action
+  (run gcc -c %{deps} -o %{targets})))

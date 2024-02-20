@@ -1,0 +1,8 @@
+(executable
+ (name Asm_test)
+ (modules Asm_test)
+ (public_name Asm_test)
+ (libraries scaml_lib stdio))
+
+(cram
+ (deps ./Asm_test.exe ../../lib/runtime/runtime.o))
