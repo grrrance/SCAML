@@ -2,7 +2,7 @@
   > let main = print_int ( (5 + 4) - 2 )
   > EOF
   $ nasm -f elf64 -o Asm_test.o Asm_test.s
-  $ gcc -o asm.out Asm_test.o ../../lib/runtime/runtime.o
+  $ gcc -o asm.out Asm_test.o ../../lib/runtime/runtime.o 2> /dev/null 2> /dev/null
   $ ./asm.out
   7
   $ ./Asm_test.exe <<- EOF > Asm_test.s
@@ -14,7 +14,7 @@
   > let main = print_int (fibo 11)
   > EOF
   $ nasm -f elf64 -o Asm_test.o Asm_test.s
-  $ gcc -o asm.out Asm_test.o ../../lib/runtime/runtime.o
+  $ gcc -o asm.out Asm_test.o ../../lib/runtime/runtime.o 2> /dev/null
   $ ./asm.out
   89
   $ ./Asm_test.exe <<- EOF > Asm_test.s
@@ -26,7 +26,7 @@
   > let main = print_int (fac 6)
   > EOF
   $ nasm -f elf64 -o Asm_test.o Asm_test.s
-  $ gcc -o asm.out Asm_test.o ../../lib/runtime/runtime.o
+  $ gcc -o asm.out Asm_test.o ../../lib/runtime/runtime.o 2> /dev/null
   $ ./asm.out
   720
   $ ./Asm_test.exe <<- EOF > Asm_test.s
@@ -34,7 +34,7 @@
   > let main = print_int x
   > EOF
   $ nasm -f elf64 -o Asm_test.o Asm_test.s
-  $ gcc -o asm.out Asm_test.o ../../lib/runtime/runtime.o
+  $ gcc -o asm.out Asm_test.o ../../lib/runtime/runtime.o 2> /dev/null
   $ ./asm.out
   4
   $ ./Asm_test.exe <<- EOF > Asm_test.s
@@ -45,7 +45,7 @@
   > let main = print_int (s1 10)
   > EOF
   $ nasm -f elf64 -o Asm_test.o Asm_test.s
-  $ gcc -o asm.out Asm_test.o ../../lib/runtime/runtime.o
+  $ gcc -o asm.out Asm_test.o ../../lib/runtime/runtime.o 2> /dev/null
   $ ./asm.out
   20
   $ ./Asm_test.exe <<- EOF > Asm_test.s
@@ -53,7 +53,7 @@
   > let main = print_int (factorial 5)
   > EOF
   $ nasm -f elf64 -o Asm_test.o Asm_test.s
-  $ gcc -o asm.out Asm_test.o ../../lib/runtime/runtime.o
+  $ gcc -o asm.out Asm_test.o ../../lib/runtime/runtime.o 2> /dev/null
   $ ./asm.out
   120
   $ ./Asm_test.exe <<- EOF > Asm_test.s
@@ -62,7 +62,7 @@
   > let main = print_int l
   > EOF
   $ nasm -f elf64 -o Asm_test.o Asm_test.s
-  $ gcc -o asm.out Asm_test.o ../../lib/runtime/runtime.o
+  $ gcc -o asm.out Asm_test.o ../../lib/runtime/runtime.o 2> /dev/null
   $ ./asm.out
   7
   $ ./Asm_test.exe <<- EOF > Asm_test.s
@@ -71,7 +71,7 @@
   > let main = print_int k
   > EOF
   $ nasm -f elf64 -o Asm_test.o Asm_test.s
-  $ gcc -o asm.out Asm_test.o ../../lib/runtime/runtime.o
+  $ gcc -o asm.out Asm_test.o ../../lib/runtime/runtime.o 2> /dev/null
   $ ./asm.out
   5
   $ ./Asm_test.exe <<- EOF > Asm_test.s
