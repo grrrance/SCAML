@@ -14,5 +14,46 @@
  (public_name demoInfer)
  (libraries neinml_lib stdio))
 
+(executable
+ (name demoClosure)
+ (modules demoClosure)
+ (instrumentation
+  (backend bisect_ppx))
+ (public_name demoClosure)
+ (libraries neinml_lib stdio))
+
+(executable
+ (name demoLambda)
+ (modules demoLambda)
+ (instrumentation
+  (backend bisect_ppx))
+ (public_name demoLambda)
+ (libraries neinml_lib stdio))
+
+(executable
+ (name demoAnf)
+ (modules demoAnf)
+ (instrumentation
+  (backend bisect_ppx))
+ (public_name demoAnf)
+ (libraries neinml_lib stdio))
+
+(executable
+ (name demoLlvm)
+ (modules demoLlvm)
+ (instrumentation
+  (backend bisect_ppx))
+ (public_name demoLlvm)
+ (libraries neinml_lib stdio)
+ (link_deps
+  (file ../runtime/runtime.so)))
+
 (cram
- (deps ./demoParse.exe ./demoInfer.exe))
+ (deps
+  ./demoParse.exe
+  ./demoInfer.exe
+  ./demoClosure.exe
+  ./demoLambda.exe
+  ./demoAnf.exe
+  ./demoLlvm.exe
+  ../runtime/runtime.so))

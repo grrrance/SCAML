@@ -1,4 +1,4 @@
-(** Copyright 2023-2024, Mikhail Vyrodov *)
+(** Copyright 2023-2024, Mikhail Vyrodov and Vyacheslav Buchin*)
 
 (** SPDX-License-Identifier: LGPL-3.0-or-later *)
 
@@ -9,34 +9,52 @@ type const =
   | VBool of bool (** bool value *)
 [@@deriving show { with_path = false }]
 
-type varname_part = VarPart of name [@@deriving show { with_path = false }]
-
-type expression =
-  | Add of expression * expression (** a + b *)
-  | Sub of expression * expression (** a - b *)
-  | Mul of expression * expression (** a * b *)
-  | Div of expression * expression (** a / b *)
-  | Mod of expression * expression (** a % b *)
-  | And of expression * expression (** a && b *)
-  | Or of expression * expression (** a || b *)
-  | Equal of expression * expression (** a = b *)
-  | NotEqual of expression * expression (** a <> b *)
-  | Less of expression * expression (** a < b *)
-  | LessOrEq of expression * expression (** a <= b *)
-  | More of expression * expression (** a > b *)
-  | MoreOrEq of expression * expression (** a >= b *)
-  | LetIn of name * expression * expression (** let func = ... in ... *)
-  | RecLetIn of name * expression * expression (** let rec func = ... in ... *)
-  | IfThenElse of expression * expression * expression
-      (** if condition then expr1 else expr2 *)
-  | Func of name * expression (** ast expression for defining functions with currying *)
-  | Apply of expression * expression (** func arg1 arg2 ... *)
-  | Variable of name (** var *)
-  | Value of const (** value (const) *)
+type binop =
+  | Add (** a + b *)
+  | Sub (** a - b *)
+  | Mul (** a * b *)
+  | Div (** a / b *)
+  | Mod (** a % b *)
+  | And (** a && b *)
+  | Or (** a || b *)
+  | Equal (** a = b *)
+  | NotEqual (** a <> b *)
+  | Less (** a < b *)
+  | LessOrEq (** a <= b *)
+  | More (** a > b *)
+  | MoreOrEq (** a >= b *)
 [@@deriving show { with_path = false }]
 
-type statement =
-  | Define of name * expression (** let var (arg1 arg2...) = <expression> *)
-  | RecDefine of name * expression (** let rec var (arg1 arg2...) = <expression> *)
+type 'a expression =
+  | BinOp of 'a expression * 'a expression * binop * 'a (** x * y *)
+  | LetIn of name * 'a expression * 'a expression * 'a (** let func = ... in ... *)
+  | RecLetIn of name * 'a expression * 'a expression * 'a (** let rec func = ... in ... *)
+  | IfThenElse of 'a expression * 'a expression * 'a expression * 'a
+      (** if condition then expr1 else expr2 *)
+  | Func of name * 'a expression * 'a
+      (** ast expression for defining functions with currying *)
+  | Apply of 'a expression * 'a expression * 'a (** func arg1 arg2 ... *)
+  | Variable of name * 'a (** var *)
+  | Value of const * 'a (** value (const) *)
+[@@deriving show { with_path = false }]
 
-and statements_list = statement list [@@deriving show { with_path = false }]
+type 'a statement =
+  | Define of name * 'a expression * 'a (** let var (arg1 arg2...) = <'a expression> *)
+  | RecDefine of name * 'a expression * 'a
+      (** let rec var (arg1 arg2...) = <'a expression> *)
+[@@deriving show { with_path = false }]
+
+type 'a statements_list = 'a statement list [@@deriving show { with_path = false }]
+
+val get_meta : 'a expression -> 'a
+val get_binop_str : binop -> string
+val cval : const -> 'a -> 'a expression
+val cvar : name -> 'a -> 'a expression
+val cbinop : 'a expression -> 'a expression -> binop -> 'a -> 'a expression
+val capply : 'a expression -> 'a expression -> 'a -> 'a expression
+val cfunc : name -> 'a expression -> 'a -> 'a expression
+val cdef : name -> 'a expression -> 'a -> 'a statement
+val crecdef : name -> 'a expression -> 'a -> 'a statement
+val cletin : name -> 'a expression -> 'a expression -> 'a -> 'a expression
+val crecletin : name -> 'a expression -> 'a expression -> 'a -> 'a expression
+val cifthenelse : 'a expression -> 'a expression -> 'a expression -> 'a -> 'a expression

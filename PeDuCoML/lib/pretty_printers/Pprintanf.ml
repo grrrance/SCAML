@@ -50,9 +50,9 @@ let rec pp_cexpr fmt = function
       "if %a then %a else %a"
       pp_immexpr
       condition
-      pp_immexpr
+      pp_aexpr
       true_branch
-      pp_immexpr
+      pp_aexpr
       false_branch
   | CConstructList (head, tail) -> fprintf fmt "%a :: %a" pp_immexpr head pp_immexpr tail
   | CImm immexpr -> pp_immexpr fmt immexpr
@@ -79,7 +79,7 @@ let pp_global_scope_function fmt =
          fmt
          "let %s %a = %a"
          name
-         (fun fmt -> pp_args pp_immexpr fmt)
+         (fun fmt -> pp_args pp_id fmt)
          arg_list
          pp_aexpr
          body)

@@ -21,15 +21,15 @@ type cexpr =
   | CBinaryOperation of binary_operator * imm_expr * imm_expr
   | CUnaryOperation of unary_operator * imm_expr
   | CApplication of imm_expr * imm_expr
-  | CIf of imm_expr * imm_expr * imm_expr
+  | CIf of imm_expr * aexpr * aexpr
   | CConstructList of imm_expr * imm_expr
   | CImm of imm_expr
 
-type aexpr =
+and aexpr =
   | ALet of unique_id * cexpr * aexpr
   | ACExpr of cexpr
 
-type global_scope_function = string * imm_expr list * aexpr
+type global_scope_function = string * unique_id list * aexpr
 
 (* Smart constructors *)
 (* unique_id *)
@@ -63,12 +63,13 @@ open State
 open Match_elim
 
 (* Runtime fuctions (unavailable to users)
-   | name             | args              |
-   ----------------------------------------
-   | peducoml_field   | list/tuple index  |
-   | peducoml_tail    | list/tuple        |
-   | peducoml_length  | list/tuple        |
-   ---------------------------------------*)
+   | name                  | args        |
+   ---------------------------------------
+   | peducoml_list_field   | list index  |
+   | peducoml_tuple_field  | tuple index |
+   | peducoml_tail         | list        |
+   | peducoml_list_length       | list        |
+   -------------------------------------*)
 
 let process_id id =
   if String.starts_with ~prefix:"peducoml_" id || String.starts_with ~prefix:"ll_" id
@@ -121,13 +122,16 @@ let rec anf (env : (string, unique_id, Base.String.comparator_witness) Base.Map.
     let* fresh_var = fresh in
     let* body = k @@ imm_id (anf_id fresh_var) in
     anf env condition (fun condition_imm ->
-      anf env true_branch (fun true_branch_imm ->
+      let* true_branch = anf env true_branch (fun x -> return @@ acimm x) in
+      let* false_branch = anf env false_branch (fun x -> return @@ acimm x) in
+      return @@ alet (anf_id fresh_var) (cif condition_imm true_branch false_branch) body)
+    (* anf env true_branch (fun true_branch_imm ->
         anf env false_branch (fun false_branch_imm ->
           return
           @@ alet
                (anf_id fresh_var)
                (cif condition_imm true_branch_imm false_branch_imm)
-               body)))
+               body))) *)
   | MFConstructList (operand, expr_list) ->
     let* fresh_var = fresh in
     let* body = k @@ imm_id (anf_id fresh_var) in
@@ -157,15 +161,15 @@ let process_declaration env =
       let id = process_id id in
       return @@ Base.Map.set acc ~key:id ~data:(anf_id fresh_var))
   in
-  let gen_imm_id env name =
+  let gen_arg_id env name =
     let name = process_id name in
-    imm_id @@ Base.Map.find_exn env name
+    Base.Map.find_exn env name
   in
   let gen_global_scope_function env name args_list expr =
     let name = process_id name in
     let* env = update_map env args_list in
     let* anf_representation = anf env expr (fun imm -> return @@ acimm imm) in
-    return (name, List.map (gen_imm_id env) args_list, anf_representation)
+    return (name, List.map (gen_arg_id env) args_list, anf_representation)
   in
   function
   | MFDeclaration (name, args_list, expr) ->
@@ -180,6 +184,8 @@ let process_declaration env =
     return global_scope_f
 ;;
 
+open Peducoml_stdlib
+
 let anf_conversion program =
   let rec helper env current_list = function
     | head :: tail ->
@@ -190,13 +196,29 @@ let anf_conversion program =
   in
   let env = Base.Map.empty (module Base.String) in
   let env =
-    Base.Map.set env ~key:"peducoml_field" ~data:(global_scope_id "peducoml_field")
+    Base.Map.set
+      env
+      ~key:"peducoml_list_field"
+      ~data:(global_scope_id "peducoml_list_field")
+  in
+  let env =
+    Base.Map.set
+      env
+      ~key:"peducoml_tuple_field"
+      ~data:(global_scope_id "peducoml_tuple_field")
   in
   let env =
     Base.Map.set env ~key:"peducoml_tail" ~data:(global_scope_id "peducoml_tail")
   in
   let env =
-    Base.Map.set env ~key:"peducoml_length" ~data:(global_scope_id "peducoml_length")
+    Base.Map.set
+      env
+      ~key:"peducoml_list_length"
+      ~data:(global_scope_id "peducoml_list_length")
+  in
+  let env =
+    Base.List.fold stdlib ~init:env ~f:(fun acc (id, _) ->
+      Base.Map.set acc ~key:id ~data:(global_scope_id id))
   in
   helper env [] program
 ;;

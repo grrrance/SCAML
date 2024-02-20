@@ -153,8 +153,8 @@ let run_closure program =
        | ( DDeclaration (id, pattern_list, body)
          | DRecursiveDeclaration (id, pattern_list, body) ) as original ->
          let decl = get_constructor original in
-         let global_scope = Base.Set.add global_scope id in
          let body = closure_conversion global_scope body in
+         let global_scope = Base.Set.add global_scope id in
          helper (decl id pattern_list body :: acc) global_scope tail)
   in
   Base.List.rev @@ helper [] (Base.Set.empty (module Base.String)) program

@@ -1,4 +1,4 @@
-(** Copyright 2023-2024, Mikhail Vyrodov *)
+(** Copyright 2023-2024, Mikhail Vyrodov and Vyacheslav Buchin *)
 
 (** SPDX-License-Identifier: LGPL-3.0-or-later *)
 
@@ -8,7 +8,7 @@
 type binder = int [@@deriving show { with_path = false }]
 
 module VarSet = struct
-  include Caml.Set.Make (Int)
+  include Stdlib.Set.Make (Int)
 
   let pp ppf s =
     Format.fprintf ppf "[ ";
@@ -22,7 +22,8 @@ type binder_set = VarSet.t [@@deriving show { with_path = false }]
 type ground =
   | TInt
   | TBool
-[@@deriving show { with_path = false }]
+  | TUnit
+[@@deriving show { with_path = false }, equal]
 
 type ty =
   | Prim of ground
@@ -37,12 +38,14 @@ let v x = Ty_var x
 let ( @-> ) = arrow
 let int_typ = Prim TInt
 let bool_typ = Prim TBool
+let unit_typ = Prim TUnit
 
 let rec pp_type fmt typ =
   let open Format in
   match typ with
   | Prim TInt -> fprintf fmt "int"
   | Prim TBool -> fprintf fmt "bool"
+  | Prim TUnit -> fprintf fmt "unit"
   | Ty_var var_num -> fprintf fmt "%s" ("'var" ^ string_of_int var_num)
   | Arrow (left, right) ->
     let format_for_arg =
@@ -74,4 +77,9 @@ let pp_error ppf : error -> _ = function
 let print_typ_error err =
   let s = Format.asprintf "%a" pp_error err in
   Format.printf "%s\n" s
+;;
+
+let stdlib =
+  [ "print_int", int_typ @-> unit_typ; "print_bool", bool_typ @-> unit_typ ]
+  |> List.map (fun (name, typ) -> name, S (VarSet.empty, typ))
 ;;

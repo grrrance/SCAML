@@ -1,8 +1,9 @@
-(** Copyright 2023-2024, Mikhail Vyrodov *)
+(** Copyright 2023-2024, Mikhail Vyrodov and Vyacheslav Buchin *)
 
 (** SPDX-License-Identifier: LGPL-3.0-or-later *)
 
 open Angstrom
+module ListM = Monad.ListM (Angstrom)
 
 let is_space = function
   | ' ' | '\t' | '\n' | '\r' -> true
@@ -41,31 +42,36 @@ let is_bool =
   | _ -> fail "not bool"
 ;;
 
+let parse_operator = function
+  | "+" -> return Ast.Add
+  | "-" -> return Ast.Sub
+  | "*" -> return Ast.Mul
+  | "/" -> return Ast.Div
+  | "%" -> return Ast.Mod
+  | "&&" -> return Ast.And
+  | "||" -> return Ast.Or
+  | "=" -> return Ast.Equal
+  | "<>" -> return Ast.NotEqual
+  | "<" -> return Ast.Less
+  | "<=" -> return Ast.LessOrEq
+  | ">" -> return Ast.More
+  | ">=" -> return Ast.MoreOrEq
+  | _ -> fail "unbound operator"
+;;
+
 let integer = str_integer >>| int_of_string
-let cval x = Ast.Value x
-let cvar x = return (Ast.Variable x)
-let cadd x y = return (Ast.Add (x, y))
-let csub x y = return (Ast.Sub (x, y))
-let cmul x y = return (Ast.Mul (x, y))
-let cdiv x y = return (Ast.Div (x, y))
-let cmod x y = return (Ast.Mod (x, y))
-let ceq x y = return (Ast.Equal (x, y))
-let cmore x y = return (Ast.More (x, y))
-let cmoreeq x y = return (Ast.MoreOrEq (x, y))
-let cnoteq x y = return (Ast.NotEqual (x, y))
-let cless x y = return (Ast.Less (x, y))
-let clesseq x y = return (Ast.LessOrEq (x, y))
-let cand x y = return (Ast.And (x, y))
-let cor x y = return (Ast.Or (x, y))
-let capply x y = Ast.Apply (x, y)
-let cfunc x y = Ast.Func (x, y)
-let cdef x y = return (Ast.Define (x, y))
-let crecdef x y = return (Ast.RecDefine (x, y))
-let cletin x y z = return (Ast.LetIn (x, y, z))
-let crecletin x y z = return (Ast.RecLetIn (x, y, z))
+let cval x = return @@ Ast.Value (x, ())
+let cvar x = return (Ast.Variable (x, ()))
+let cbinop x y op = parse_operator op >>= fun op -> return @@ Ast.BinOp (x, y, op, ())
+let capply x y = return @@ Ast.Apply (x, y, ())
+let cfunc x y = return @@ Ast.Func (x, y, ())
+let cdef x y = return (Ast.Define (x, y, ()))
+let crecdef x y = return (Ast.RecDefine (x, y, ()))
+let cletin x y z = return (Ast.LetIn (x, y, z, ()))
+let crecletin x y z = return (Ast.RecLetIn (x, y, z, ()))
 
 let cif condition then_statement else_statement =
-  return (Ast.IfThenElse (condition, then_statement, else_statement))
+  return (Ast.IfThenElse (condition, then_statement, else_statement, ()))
 ;;
 
 let keywords =
@@ -97,19 +103,20 @@ let varname =
 ;;
 
 type dispatch =
-  { func_call : dispatch -> Ast.expression Angstrom.t
-  ; parse_lam : dispatch -> string -> Ast.expression Angstrom.t
-  ; parse_if : dispatch -> string -> Ast.expression Angstrom.t
-  ; arithmetical : dispatch -> string -> Ast.expression Angstrom.t
-  ; logical : dispatch -> string -> Ast.expression Angstrom.t
-  ; parse_and : dispatch -> string -> Ast.expression Angstrom.t
-  ; logical_sequence : dispatch -> string -> Ast.expression Angstrom.t
-  ; bracket : dispatch -> Ast.expression Angstrom.t
-  ; bracket_singles : dispatch -> string -> Ast.expression Angstrom.t
-  ; all_singles : dispatch -> string -> Ast.expression Angstrom.t
-  ; all_ops : dispatch -> string -> Ast.expression Angstrom.t
-  ; parse_letin : dispatch -> string -> Ast.expression Angstrom.t
-  ; parse_def : dispatch -> string -> Ast.statement Angstrom.t
+  { func_call : dispatch -> unit Ast.expression Angstrom.t
+  ; parse_lam : dispatch -> string -> unit Ast.expression Angstrom.t
+  ; parse_if : dispatch -> string -> unit Ast.expression Angstrom.t
+  ; arithmetical : dispatch -> string -> unit Ast.expression Angstrom.t
+  ; parse_priority : dispatch -> string -> unit Ast.expression Angstrom.t
+  ; logical : dispatch -> string -> unit Ast.expression Angstrom.t
+  ; parse_and : dispatch -> string -> unit Ast.expression Angstrom.t
+  ; logical_sequence : dispatch -> string -> unit Ast.expression Angstrom.t
+  ; bracket : dispatch -> unit Ast.expression Angstrom.t
+  ; bracket_singles : dispatch -> string -> unit Ast.expression Angstrom.t
+  ; all_singles : dispatch -> string -> unit Ast.expression Angstrom.t
+  ; all_ops : dispatch -> string -> unit Ast.expression Angstrom.t
+  ; parse_letin : dispatch -> string -> unit Ast.expression Angstrom.t
+  ; parse_def : dispatch -> string -> unit Ast.statement Angstrom.t
   }
 
 type error = [ `ParsingError of string ]
@@ -118,17 +125,10 @@ let pp_error ppf = function
   | `ParsingError s -> Format.fprintf ppf "%s" s
 ;;
 
-let parse_int = spaces *> integer <* spaces >>= fun c -> return (Ast.Value (Ast.VInt c))
-let parse_bool = spaces *> is_bool <* spaces >>= fun c -> return (Ast.Value (Ast.VBool c))
+let parse_int = spaces *> integer <* spaces >>= fun c -> cval @@ Ast.VInt c
+let parse_bool = spaces *> is_bool <* spaces >>= fun c -> cval @@ Ast.VBool c
 let parse_const = [ parse_int; parse_bool ]
-
-let parse_part_singles =
-  choice
-    (parse_const
-    @ [ (spaces *> varname <* spaces >>= fun var_name -> return (Ast.Variable var_name)) ]
-    )
-;;
-
+let parse_part_singles = choice (parse_const @ [ spaces *> varname <* spaces >>= cvar ])
 let parse_singles = spaces *> parse_part_singles <* spaces
 
 let input_end_with end_input =
@@ -148,7 +148,7 @@ let parse_eof =
 
 let input_end end_str =
   match end_str with
-  | "EOF" -> parse_eof
+  | "EOF" -> parse_eof <|> input_end_with "let"
   | _ -> input_end_with end_str
 ;;
 
@@ -158,24 +158,25 @@ let parse_miniml =
     *> choice
          [ pack.all_singles pack inp_end
          ; pack.arithmetical pack inp_end
-         ; pack.logical_sequence pack inp_end
          ; pack.parse_and pack inp_end
+         ; pack.logical_sequence pack inp_end
          ; pack.logical pack inp_end
          ]
     <* spaces
   in
   let func_call pack =
     fix (fun _ ->
-      spaces *> varname
-      >>= fun x ->
-      return (Ast.Variable x)
+      spaces *> (varname >>= fun x -> cvar x)
+      <|> (char '(' *> pack.parse_if pack ")" <* char ')')
+      <|> (char '(' *> pack.parse_lam pack ")" <* char ')')
+      <|> (char '(' *> pack.func_call pack <* char ')')
+      <|> (char '(' *> pack.parse_letin pack ")" <* char ')')
       >>= fun x_var ->
-      many (pack.bracket pack <|> parse_singles)
-      >>= fun args -> return (List.fold_left capply x_var args))
+      many (parse_singles <|> pack.bracket pack) >>= ListM.fold_left capply x_var)
   in
   let parse_lam pack inp_end =
     let parse_bracket_inner_def =
-      spaces *> char '(' *> spaces *> pack.parse_letin pack ")"
+      spaces *> char '(' *> spaces *> (pack.all_ops pack ")" <|> pack.parse_letin pack ")")
       <* spaces
       <* char ')'
       <* spaces
@@ -186,14 +187,12 @@ let parse_miniml =
       >>= fun args ->
       string "->"
       *> spaces
-      *> (pack.all_ops pack inp_end
-         <|> parse_bracket_inner_def
-         <|> pack.parse_letin pack inp_end)
-      >>= fun body -> return (List.fold_right cfunc args body))
+      *> (parse_bracket_inner_def
+         <|> pack.parse_letin pack inp_end
+         <|> pack.all_ops pack inp_end)
+      >>= ListM.fold_right cfunc args)
   in
-  let parse_var =
-    spaces *> varname <* spaces >>= fun var_name -> return (Ast.Variable var_name)
-  in
+  let parse_var = spaces *> varname <* spaces >>= cvar in
   let parse_part_singles = choice (parse_const @ [ parse_var ]) in
   let parse_singles = spaces *> parse_part_singles <* spaces in
   let parse_if pack inp_end =
@@ -231,57 +230,61 @@ let parse_miniml =
     choice
       [ parse_singles <* input_end inp_end
       ; pack.parse_lam pack inp_end
-      ; pack.bracket pack <* input_end inp_end
       ; pack.func_call pack <* input_end inp_end
       ; pack.parse_if pack inp_end
+      ; pack.bracket pack <* input_end inp_end
       ]
   in
-  let all_singles pack end_input =
-    let parse_priority =
+  let bracket pack =
+    fix (fun _ ->
+      spaces
+      *> char '('
+      *> choice
+           [ parse_singles <* input_end ")"
+           ; pack.func_call pack <* input_end ")"
+           ; pack.parse_if pack ")"
+           ; pack.parse_lam pack ")"
+           ; pack.parse_priority pack ")"
+           ; pack.arithmetical pack ")"
+           ; pack.parse_and pack ")"
+           ; pack.logical_sequence pack ")"
+           ; pack.logical pack ")"
+           ; pack.parse_letin pack ")"
+           ]
+      <* char ')'
+      <* spaces)
+  in
+  let parse_priority pack inp_end =
+    fix (fun _ ->
       pack.bracket_singles pack "*"
       <|> pack.bracket_singles pack "/"
       <|> pack.bracket_singles pack "%"
       >>= fun left ->
       choice [ string "*"; string "/"; string "%" ]
       >>= fun operator ->
-      pack.bracket_singles pack end_input
-      <|> spaces *> pack.all_singles pack end_input
-      >>= fun right ->
-      let create_expr =
-        match operator with
-        | "*" -> cmul left right
-        | "/" -> cdiv left right
-        | "%" -> cmod left right
-        | _ -> fail "Not priority operator"
-      in
-      create_expr
-    in
-    spaces
-    *> (pack.bracket_singles pack end_input <|> parse_priority <* input_end end_input)
-    <* spaces
+      pack.bracket_singles pack inp_end
+      <|> pack.parse_priority pack inp_end
+      >>= fun right -> cbinop left right operator)
+  in
+  let all_singles pack end_input =
+    fix (fun _ ->
+      spaces
+      *> (pack.bracket_singles pack end_input
+         <|> (pack.parse_priority pack end_input <* input_end end_input))
+      <* spaces)
   in
   let arithmetical pack end_input =
     fix (fun _ ->
-      let parse_simple_op_without_brackets end_input op =
+      let parse_simple_op end_input op =
         pack.all_singles pack op
         <* string op
         >>= fun left ->
         pack.all_singles pack end_input
         <* input_end end_input
-        >>= fun right ->
-        let create_expr =
-          match op with
-          | "+" -> cadd left right
-          | "-" -> csub left right
-          | _ -> fail "op is not + or - operator"
-        in
-        create_expr
-      in
-      let parse_simple_op end_input op =
-        parse_simple_op_without_brackets end_input op :: []
+        >>= fun right -> cbinop left right op
       in
       let parse_simple_ops end_input =
-        parse_simple_op end_input "+" @ parse_simple_op end_input "-"
+        [ parse_simple_op end_input "+"; parse_simple_op end_input "-" ]
       in
       let parse_complex_op end_input operator =
         pack.all_singles pack operator
@@ -294,15 +297,7 @@ let parse_miniml =
             spaces *> pack.all_singles pack end_input
             <|> spaces *> pack.arithmetical pack end_input
         in
-        matching left
-        >>= fun right ->
-        let create_expr =
-          match operator with
-          | "+" -> cadd left right
-          | "-" -> csub left right
-          | _ -> fail "op is not + or - operator"
-        in
-        create_expr
+        matching left >>= fun right -> cbinop left right operator
       in
       choice
         (parse_simple_ops end_input
@@ -320,15 +315,7 @@ let parse_miniml =
         <|> pack.arithmetical pack inp_end
         <|> pack.logical pack inp_end
         <* spaces
-        >>= fun right ->
-        match operator with
-        | "=" -> ceq left right
-        | ">" -> cmore left right
-        | ">=" -> cmoreeq left right
-        | "<" -> cless left right
-        | "<=" -> clesseq left right
-        | "<>" -> cnoteq left right
-        | _ -> fail "operator is not a simple logical operator"
+        >>= fun right -> cbinop left right operator
       in
       let parse_logical end_input =
         [ parse_logical_op end_input "="
@@ -353,10 +340,7 @@ let parse_miniml =
         <|> pack.logical pack end_inp
         <|> pack.parse_and pack inp_end
         <* spaces
-        >>= fun right ->
-        match operator with
-        | "&&" -> cand left right
-        | _ -> fail "operator is not && operator"
+        >>= fun right -> cbinop left right operator
       in
       parse_and inp_end "&&")
   in
@@ -374,33 +358,13 @@ let parse_miniml =
         <|> pack.parse_and pack inp_end
         <|> pack.logical_sequence pack inp_end
         <* spaces
-        >>= fun right ->
-        match operator with
-        | "&&" -> cand left right
-        | "||" -> cor left right
-        | _ -> fail "operator is not a && or || operator"
+        >>= fun right -> cbinop left right operator
       in
       parse_or inp_end "||")
   in
-  let bracket pack =
-    fix (fun _ ->
-      spaces
-      *> char '('
-      *> choice
-           [ pack.all_singles pack ")"
-           ; pack.arithmetical pack ")"
-           ; pack.logical pack ")"
-           ; pack.logical_sequence pack ")"
-           ; pack.parse_and pack ")"
-           ; parse_singles <* input_end ")"
-           ]
-      <* char ')'
-      <* spaces)
-  in
   let parse_rec =
     peek_string 3
-    >>= fun x ->
-    match x with
+    >>= function
     | "rec" -> string "rec" *> return true
     | _ -> return false
   in
@@ -414,10 +378,12 @@ let parse_miniml =
       >>= fun fun_name ->
       many (spaces *> varname <* spaces)
       >>= fun args ->
-      input_end "=" *> char '=' *> spaces *> pack.all_ops pack "in"
+      input_end "="
+      *> char '='
+      *> spaces
+      *> (pack.all_ops pack "in" <|> pack.parse_letin pack "in")
       <* spaces
-      >>= fun body ->
-      return (List.fold_right cfunc args body)
+      >>= ListM.fold_right cfunc args
       <* string "in"
       >>= fun parsed_func ->
       pack.all_ops pack inp_end
@@ -439,8 +405,7 @@ let parse_miniml =
       >>= fun args ->
       char '=' *> spaces *> (pack.all_ops pack inp_end <|> pack.parse_letin pack inp_end)
       <* spaces
-      >>= fun body ->
-      return (List.fold_right cfunc args body)
+      >>= ListM.fold_right cfunc args
       >>= fun parsed_func ->
       match rec_flag with
       | true -> crecdef fun_name parsed_func
@@ -450,6 +415,7 @@ let parse_miniml =
   ; parse_lam
   ; parse_if
   ; arithmetical
+  ; parse_priority
   ; logical
   ; parse_and
   ; logical_sequence
@@ -465,12 +431,10 @@ let parse_miniml =
 let parse str =
   match
     Angstrom.parse_string
-      (many
-         (parse_miniml.parse_def parse_miniml "EOF"
-         <|> parse_miniml.parse_def parse_miniml "let"))
+      (many (parse_miniml.parse_def parse_miniml "EOF"))
       ~consume:Angstrom.Consume.All
       str
   with
-  | Result.Ok x -> Result.Ok x
-  | Error er -> Result.Error (`ParsingError er)
+  | Result.Ok _ as ok -> ok
+  | Result.Error er -> Result.Error (`ParsingError er)
 ;;
