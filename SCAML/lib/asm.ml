@@ -32,6 +32,10 @@ let reg_from_arg = function
   | _ -> error "Too many arguments"
 ;;
 
+let storage_str = function
+  | Mem value | Reg value | Imm value -> value
+;;
+
 let buid_store asm_val =
   let offset = Int.to_string !stack_offset in
   stack_offset := !stack_offset - 8;
@@ -43,17 +47,13 @@ let buid_store asm_val =
 ;;
 
 let build_call name args =
-  let args =
-    Base.List.map args ~f:(function
-      | Mem value -> value
-      | Reg value -> value
-      | Imm value -> value)
-  in
-  let* _ = Base.List.foldi args ~init:(ok ()) ~f:(fun i acc arg ->
-    let* _ = acc in
-    let* reg = reg_from_arg i in 
-    Buffer.add_string asm_code (Printf.sprintf "  mov %s, %s\n" reg arg);
-    ok ())
+  let args = Base.List.map args ~f:storage_str in
+  let* _ =
+    Base.List.foldi args ~init:(ok ()) ~f:(fun i acc arg ->
+      let* _ = acc in
+      let* reg = reg_from_arg i in
+      Buffer.add_string asm_code (Printf.sprintf "  mov %s, %s\n" reg arg);
+      ok ())
   in
   Buffer.add_string asm_code (Printf.sprintf "  call %s\n" name);
   ok (buid_store (reg "rax"))
@@ -76,18 +76,8 @@ let codegen_imm env = function
 ;;
 
 let codegen_binop op left right =
-  let left =
-    match left with
-    | Mem value -> value
-    | Reg value -> value
-    | Imm value -> value
-  in
-  let right =
-    match right with
-    | Mem value -> value
-    | Reg value -> value
-    | Imm value -> value
-  in
+  let left = storage_str left in
+  let right = storage_str right in
   (match op with
    | Add ->
      Buffer.add_string
@@ -177,12 +167,7 @@ let rec codegen_cexpr env = function
     let else_label = Printf.sprintf "else_%d" !if_counter in
     let end_label = Printf.sprintf "end_%d" (!if_counter + 1) in
     if_counter := !if_counter + 2;
-    let cond_mem =
-      match cond with
-      | Mem value -> value
-      | Reg value -> value
-      | Imm value -> value
-    in
+    let cond_mem = storage_str cond in
     Buffer.add_string
       asm_code
       (Printf.sprintf "  cmp %s, 0\n  je %s\n" cond_mem else_label);
@@ -199,12 +184,7 @@ let rec codegen_cexpr env = function
       | Reg value -> value
       | Imm value -> value
     in
-    let res_mem =
-      match res with
-      | Mem value -> value
-      | Reg value -> value
-      | Imm value -> value
-    in
+    let res_mem = storage_str res in
     Buffer.add_string asm_code (Printf.sprintf "  mov %s, %s\n" res_mem else_mem);
     Buffer.add_string asm_code (Printf.sprintf "%s:\n" end_label);
     ok res
@@ -229,20 +209,11 @@ let codegen_bexpr = function
     Buffer.add_string asm_code "  push rbp\n  mov rbp, rsp\n";
     stack_offset := -8;
     Buffer.add_string asm_code "  sub rsp, RSP_OFFSET\n";
-    let* names =
-      let rec check acc = function
-        | [] -> ok (List.rev acc)
-        | PImmExpr (ImmId id) :: xs -> check (id :: acc) xs
-        | PImmWild :: xs -> check ("0_unused" :: acc) xs
-        | _ -> error "Invalid argument"
-      in
-      check [] args
-    in
     let* env =
       Base.List.foldi
-        ~f:(fun i env id ->
-          if id <> "0_unused"
-          then
+        ~f:(fun i env ->
+          function
+          | PImmExpr (ImmId id) ->
             if i < 6
             then (
               let* env = env in
@@ -265,18 +236,14 @@ let codegen_bexpr = function
                    env
                    ~key:id
                    ~data:(Printf.sprintf "qword [rbp + %d]" ((8 * (i - 5)) + 8)))
-          else env)
+          | PImmWild -> env
+          | _ -> error "Invalid argument")
         ~init:(ok env)
-        names
+        args
     in
     Hashtbl.add global_env id (List.length args);
     let* body = codegen_aexpr env body in
-    let body_mem =
-      match body with
-      | Mem value -> value
-      | Reg value -> value
-      | Imm value -> value
-    in
+    let body_mem = storage_str body in
     Buffer.add_string asm_code (Printf.sprintf "  mov rax, %s\n" body_mem);
     let rsp_offset = -1 * !stack_offset mod 16 in
     let rsp_offset =
