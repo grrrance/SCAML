@@ -18,8 +18,6 @@ let reg r = Reg r
 let mem_str m = Mem (Printf.sprintf "qword [rbp %s]" m)
 let mem m = Mem m
 let global_env : (string, int) Hashtbl.t = Hashtbl.create 20
-(* let if_counter = ref 0 *)
-(* let stack_offset = ref 0 *)
 let asm_code = Buffer.create 128
 
 let reg_from_arg = function
@@ -37,9 +35,8 @@ let storage_str = function
 ;;
 
 let buid_store asm_val =
-  let* offs , _ = decr_offset in
+  let* offs, _ = decr_offset in
   let offset = Int.to_string offs in
-  (* stack_offset := !stack_offset - 8; *)
   match asm_val with
   | Imm value | Reg value ->
     Buffer.add_string asm_code (Printf.sprintf "  mov qword [rbp %s], %s\n" offset value);
@@ -69,7 +66,6 @@ let codegen_imm env = function
      | None ->
        (match Hashtbl.find_opt global_env id with
         | Some arg_num ->
-          (* get function address *)
           Buffer.add_string asm_code (Printf.sprintf "  mov rax, %s\n" id);
           build_call "addNewPAppliClosure" [ reg "rax"; imm (Int.to_string arg_num) ]
         | None -> error "Global function not found"))
@@ -168,8 +164,7 @@ let rec codegen_cexpr env = function
     let* _, else_id = fresh_if in
     let* _, end_id = fresh_if in
     let else_label = Printf.sprintf "else_%d" else_id in
-    let end_label = Printf.sprintf "end_%d" (end_id) in
-    (* if_counter := !if_counter + 2; *)
+    let end_label = Printf.sprintf "end_%d" end_id in
     let cond_mem = storage_str cond in
     Buffer.add_string
       asm_code
@@ -210,7 +205,6 @@ let codegen_bexpr = function
     let env = Base.Map.Poly.empty in
     Buffer.add_string asm_code (Printf.sprintf "%s:\n" id);
     Buffer.add_string asm_code "  push rbp\n  mov rbp, rsp\n";
-    (* stack_offset := -8; *)
     Buffer.add_string asm_code "  sub rsp, RSP_OFFSET\n";
     let* env =
       Base.List.foldi
@@ -231,7 +225,6 @@ let codegen_bexpr = function
                   ~key:id
                   ~data:(Printf.sprintf "qword [rbp %d]" offset)
               in
-              (* stack_offset := !stack_offset - 8; *)
               ok env)
             else
               let* env = env in
@@ -252,9 +245,7 @@ let codegen_bexpr = function
     let* offset, _ = get_counters in
     let rsp_offset = -1 * offset mod 16 in
     let rsp_offset =
-      if rsp_offset <> 0
-      then (-1 * offset) + 16 - rsp_offset
-      else -1 * offset
+      if rsp_offset <> 0 then (-1 * offset) + 16 - rsp_offset else -1 * offset
     in
     Buffer.add_string asm_code (Printf.sprintf "  add rsp, %d\n" rsp_offset);
     Buffer.add_string asm_code "  mov rsp, rbp\n  pop rbp\n  ret\n";
@@ -290,6 +281,6 @@ let codegen_program prog =
       prog
   in
   ok (header ^ result)
+;;
 
-
-let run_asm prog = snd @@ runResState ~init: (0,0) (codegen_program prog) ;;
+let run_asm prog = snd @@ runResState ~init:(0, 0) (codegen_program prog)
