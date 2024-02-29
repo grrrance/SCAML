@@ -86,7 +86,7 @@
   main:
     push rbp
     mov rbp, rsp
-    sub rsp, 48
+    sub rsp, 32
     mov rax, 5
     add rax, 4
     mov qword [rbp -8], rax
@@ -103,7 +103,7 @@
     call applyPAppli
     mov qword [rbp -32], rax
     mov rax, qword [rbp -32]
-    add rsp, 48
+    add rsp, 32
     mov rsp, rbp
     pop rbp
     ret
