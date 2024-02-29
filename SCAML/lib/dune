@@ -17,7 +17,8 @@
   LambdaLifting
   LlvmCompiler
   StdlibFunc
-  Asm)
+  Asm
+  resultCounter)
  (libraries base angstrom llvm)
  (instrumentation
   (backend bisect_ppx))

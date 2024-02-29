@@ -9,6 +9,7 @@ open Scaml_lib.Ty
 open Scaml_lib.LambdaLifting
 open Scaml_lib.Anf
 open Scaml_lib.Asm
+open Scaml_lib.ResultCounter.IResState
 open Base
 
 let print_prog_result prog =
@@ -19,10 +20,10 @@ let print_prog_result prog =
        let prog_closure = prog_conversion prog in
        let lifted = run_ll prog_closure in
        let anf_prog = anf_program lifted in
-       (match codegen_program anf_prog with
-        | Ok asm_code ->
+       (match run_asm anf_prog with
+        | ROk asm_code ->
             Stdlib.Format.printf "%s\n" asm_code
-        | Error e -> Stdlib.Format.printf "Error%s" e)
+        | RErr e -> Stdlib.Format.printf "Error%s" e)
      | Error e -> print_typ_err e)
   | Error e -> Stdlib.Format.printf "Error%s" e
 ;;

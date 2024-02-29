@@ -7,4 +7,4 @@ type asm_val =
   | Reg of string
   | Mem of string
 
-val codegen_program :  RestrictedAst.bexpr list -> (string, string) Result.t
+val run_asm :  RestrictedAst.bexpr list -> (string) ResultCounter.IResState.res

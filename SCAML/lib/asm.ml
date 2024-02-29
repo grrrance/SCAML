@@ -3,10 +3,10 @@
 (** SPDX-License-Identifier: LGPL-2.1-or-later *)
 
 open RestrictedAst
-open Result
+open ResultCounter
+open IResState
+open IResState.Syntax
 open Ast
-
-let ( let* ) = bind
 
 type asm_val =
   | Imm of string
@@ -18,8 +18,8 @@ let reg r = Reg r
 let mem_str m = Mem (Printf.sprintf "qword [rbp %s]" m)
 let mem m = Mem m
 let global_env : (string, int) Hashtbl.t = Hashtbl.create 20
-let if_counter = ref 0
-let stack_offset = ref 0
+(* let if_counter = ref 0 *)
+(* let stack_offset = ref 0 *)
 let asm_code = Buffer.create 128
 
 let reg_from_arg = function
@@ -37,13 +37,14 @@ let storage_str = function
 ;;
 
 let buid_store asm_val =
-  let offset = Int.to_string !stack_offset in
-  stack_offset := !stack_offset - 8;
+  let* offs , _ = decr_offset in
+  let offset = Int.to_string offs in
+  (* stack_offset := !stack_offset - 8; *)
   match asm_val with
   | Imm value | Reg value ->
     Buffer.add_string asm_code (Printf.sprintf "  mov qword [rbp %s], %s\n" offset value);
-    mem_str offset
-  | Mem value -> mem value
+    ok (mem_str offset)
+  | Mem value -> ok (mem value)
 ;;
 
 let build_call name args =
@@ -56,23 +57,23 @@ let build_call name args =
       ok ())
   in
   Buffer.add_string asm_code (Printf.sprintf "  call %s\n" name);
-  ok (buid_store (reg "rax"))
+  buid_store (reg "rax")
 ;;
 
 let codegen_imm env = function
-  | ImmNum i -> Ok (imm (Int.to_string i))
-  | ImmBool b -> Ok (imm (if b then "1" else "0"))
+  | ImmNum i -> ok (imm (Int.to_string i))
+  | ImmBool b -> ok (imm (if b then "1" else "0"))
   | ImmId id ->
     (match Base.Map.Poly.find env id with
-     | Some offeset -> Ok (mem offeset)
+     | Some offeset -> ok (mem offeset)
      | None ->
        (match Hashtbl.find_opt global_env id with
         | Some arg_num ->
           (* get function address *)
           Buffer.add_string asm_code (Printf.sprintf "  mov rax, %s\n" id);
           build_call "addNewPAppliClosure" [ reg "rax"; imm (Int.to_string arg_num) ]
-        | None -> Error "Global function not found"))
-  | ImmUnit -> Ok (imm "0")
+        | None -> error "Global function not found"))
+  | ImmUnit -> ok (imm "0")
 ;;
 
 let codegen_binop op left right =
@@ -149,7 +150,7 @@ let codegen_binop op left right =
      Buffer.add_string
        asm_code
        (Printf.sprintf "  mov rax, %s\n  or rax, %s\n" left right));
-  Ok (buid_store (reg "rax"))
+  buid_store (reg "rax")
 ;;
 
 let rec codegen_cexpr env = function
@@ -164,15 +165,17 @@ let rec codegen_cexpr env = function
     build_call "applyPAppli" [ calee; arg ]
   | CIf (cond, then_, else_) ->
     let* cond = codegen_imm env cond in
-    let else_label = Printf.sprintf "else_%d" !if_counter in
-    let end_label = Printf.sprintf "end_%d" (!if_counter + 1) in
-    if_counter := !if_counter + 2;
+    let* _, else_id = fresh_if in
+    let* _, end_id = fresh_if in
+    let else_label = Printf.sprintf "else_%d" else_id in
+    let end_label = Printf.sprintf "end_%d" (end_id) in
+    (* if_counter := !if_counter + 2; *)
     let cond_mem = storage_str cond in
     Buffer.add_string
       asm_code
       (Printf.sprintf "  cmp %s, 0\n  je %s\n" cond_mem else_label);
     let* then_ = codegen_aexpr env then_ in
-    let res = buid_store then_ in
+    let* res = buid_store then_ in
     Buffer.add_string asm_code (Printf.sprintf "  jmp %s\n" end_label);
     Buffer.add_string asm_code (Printf.sprintf "%s:\n" else_label);
     let* else_ = codegen_aexpr env else_ in
@@ -207,7 +210,7 @@ let codegen_bexpr = function
     let env = Base.Map.Poly.empty in
     Buffer.add_string asm_code (Printf.sprintf "%s:\n" id);
     Buffer.add_string asm_code "  push rbp\n  mov rbp, rsp\n";
-    stack_offset := -8;
+    (* stack_offset := -8; *)
     Buffer.add_string asm_code "  sub rsp, RSP_OFFSET\n";
     let* env =
       Base.List.foldi
@@ -216,18 +219,19 @@ let codegen_bexpr = function
           | PImmExpr (ImmId id) ->
             if i < 6
             then (
+              let* offset, _ = decr_offset in
               let* env = env in
               let* reg = reg_from_arg i in
               Buffer.add_string
                 asm_code
-                (Printf.sprintf "  mov qword [rbp %d], %s\n" !stack_offset reg);
+                (Printf.sprintf "  mov qword [rbp %d], %s\n" offset reg);
               let env =
                 Base.Map.Poly.set
                   env
                   ~key:id
-                  ~data:(Printf.sprintf "qword [rbp %d]" !stack_offset)
+                  ~data:(Printf.sprintf "qword [rbp %d]" offset)
               in
-              stack_offset := !stack_offset - 8;
+              (* stack_offset := !stack_offset - 8; *)
               ok env)
             else
               let* env = env in
@@ -245,11 +249,12 @@ let codegen_bexpr = function
     let* body = codegen_aexpr env body in
     let body_mem = storage_str body in
     Buffer.add_string asm_code (Printf.sprintf "  mov rax, %s\n" body_mem);
-    let rsp_offset = -1 * !stack_offset mod 16 in
+    let* offset, _ = get_counters in
+    let rsp_offset = -1 * offset mod 16 in
     let rsp_offset =
       if rsp_offset <> 0
-      then (-1 * !stack_offset) + 16 - rsp_offset
-      else -1 * !stack_offset
+      then (-1 * offset) + 16 - rsp_offset
+      else -1 * offset
     in
     Buffer.add_string asm_code (Printf.sprintf "  add rsp, %d\n" rsp_offset);
     Buffer.add_string asm_code "  mov rsp, rbp\n  pop rbp\n  ret\n";
@@ -285,4 +290,6 @@ let codegen_program prog =
       prog
   in
   ok (header ^ result)
-;;
+
+
+let run_asm prog = snd @@ runResState ~init: (0,0) (codegen_program prog) ;;
